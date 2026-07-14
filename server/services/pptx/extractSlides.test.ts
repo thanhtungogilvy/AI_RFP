@@ -50,6 +50,24 @@ describe('extractSlidesFromPptx', () => {
     ])
   })
 
+  it('assigns one-based sequential numbers independently of slide filenames', async () => {
+    const zip = new JSZip()
+    zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+    zip.file('ppt/presentation.xml', '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>')
+    const slideXml = (text: string) => `
+      <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld>
+      </p:sld>
+    `
+    zip.file('ppt/slides/slide5.xml', slideXml('Later'))
+    zip.file('ppt/slides/slide0.xml', slideXml('Earlier'))
+
+    const slides = await extractSlidesFromPptx(await zip.generateAsync({ type: 'nodebuffer' }))
+
+    expect(slides.map(slide => slide.slideNumber)).toEqual([1, 2])
+    expect(slides.map(slide => slide.content)).toEqual(['Earlier', 'Later'])
+  })
+
   it('rejects corrupt zip data', async () => {
     await expect(extractSlidesFromPptx(Buffer.from('not-a-zip'))).rejects.toThrow('Invalid PPTX file')
   })

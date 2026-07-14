@@ -99,7 +99,7 @@ export async function extractSlidesFromPptx(buffer: Buffer): Promise<ExtractedSl
   }
 
   const slides = await Promise.all(
-    slideEntries.map(async ({ entry, number }) => parseSlide(await entry.async('string'), number)),
+    slideEntries.map(async ({ entry }, index) => parseSlide(await entry.async('string'), index + 1)),
   )
 
   if (slides.every(slide => !slide.content)) throw new Error('PPTX contains no extractable text')
