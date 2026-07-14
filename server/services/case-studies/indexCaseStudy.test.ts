@@ -33,7 +33,9 @@ function makeDeps() {
     ]),
     insertSlides: vi.fn().mockResolvedValue(undefined),
     updateStatus: vi.fn().mockResolvedValue(undefined),
-    getCaseStudy: vi.fn().mockResolvedValue({ ...saved, status: 'indexed' }),
+    getCaseStudy: vi.fn().mockResolvedValue({ ...saved, status: 'indexed', slides: [
+      { slideIndex: 1, title: 'Overview', content: 'Overview\nEvidence' },
+    ] }),
   }
 }
 
@@ -55,6 +57,35 @@ describe('indexCaseStudy', () => {
     ])
     expect(deps.updateStatus).toHaveBeenLastCalledWith(saved.id, 'indexed')
     expect(result.status).toBe('indexed')
+    expect(result.slides).toEqual([{ slideIndex: 1, title: 'Overview', content: 'Overview\nEvidence' }])
+  })
+
+  it('marks an indexed refetch as error when persisted slide count differs', async () => {
+    const deps = makeDeps()
+    deps.getCaseStudy.mockResolvedValue({ ...saved, status: 'indexed', slides: [] })
+    await expect(indexCaseStudy(input, deps)).rejects.toThrow('Case study indexing did not complete')
+    expect(deps.updateStatus).toHaveBeenLastCalledWith(saved.id, 'error')
+  })
+
+  it.each([
+    ['../../secret deck.pptx', 'secret_deck.pptx'],
+    ['bad\u0000/name?.pptx', 'name_.pptx'],
+  ])('sanitizes storage name %s while retaining metadata', async (fileName, expected) => {
+    const deps = makeDeps()
+    await indexCaseStudy({ ...input, fileName }, deps)
+    expect(deps.insertCaseStudy).toHaveBeenCalledWith(expect.objectContaining({ fileName }))
+    expect(deps.uploadFile).toHaveBeenCalledWith('case-studies', `${saved.id}/${expected}`, input.buffer, PPTX_MIME)
+  })
+
+  it('caps the sanitized storage object filename while preserving the pptx extension', async () => {
+    const deps = makeDeps()
+    await indexCaseStudy({ ...input, fileName: `${'a'.repeat(240)}.pptx` }, deps)
+    const path = deps.uploadFile.mock.calls[0]?.[1]
+    expect(path).toBeTypeOf('string')
+    if (typeof path !== 'string') throw new Error('Expected storage path')
+    const objectName = path.split('/').pop()!
+    expect(objectName).toHaveLength(180)
+    expect(objectName).toMatch(/\.pptx$/)
   })
 
   it('marks the record as error and preserves extraction failures', async () => {

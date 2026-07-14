@@ -1,7 +1,12 @@
 import JSZip from 'jszip'
 import pptxgen from 'pptxgenjs'
 import { describe, expect, it } from 'vitest'
-import { extractSlidesFromPptx } from './extractSlides'
+import { extractSlidesFromPptx, validateSlideResourceLimits } from './extractSlides'
+
+function addPresentation(zip: JSZip, slideTargets: string[]) {
+  zip.file('ppt/presentation.xml', `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst>${slideTargets.map((_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 1}"/>`).join('')}</p:sldIdLst></p:presentation>`)
+  zip.file('ppt/_rels/presentation.xml.rels', `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${slideTargets.map((target, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="${target}"/>`).join('')}</Relationships>`)
+}
 
 async function makeDeck(slides: Array<Array<{ text: string; options?: Record<string, unknown> }>>) {
   const pptx = new pptxgen()
@@ -35,7 +40,7 @@ describe('extractSlidesFromPptx', () => {
   it('uses a title placeholder instead of the first body shape', async () => {
     const zip = new JSZip()
     zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
-    zip.file('ppt/presentation.xml', '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>')
+    addPresentation(zip, ['slides/slide1.xml'])
     zip.file('ppt/slides/slide1.xml', `
       <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
         <p:cSld><p:spTree>
@@ -50,10 +55,10 @@ describe('extractSlidesFromPptx', () => {
     ])
   })
 
-  it('assigns one-based sequential numbers independently of slide filenames', async () => {
+  it('uses presentation relationship order rather than slide filenames', async () => {
     const zip = new JSZip()
     zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
-    zip.file('ppt/presentation.xml', '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>')
+    addPresentation(zip, ['slides/slide5.xml', 'slides/slide0.xml'])
     const slideXml = (text: string) => `
       <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
         <p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>${text}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld>
@@ -65,7 +70,35 @@ describe('extractSlidesFromPptx', () => {
     const slides = await extractSlidesFromPptx(await zip.generateAsync({ type: 'nodebuffer' }))
 
     expect(slides.map(slide => slide.slideNumber)).toEqual([1, 2])
-    expect(slides.map(slide => slide.content)).toEqual(['Earlier', 'Later'])
+    expect(slides.map(slide => slide.content)).toEqual(['Later', 'Earlier'])
+  })
+
+  it('extracts table-only text in cell and run order', async () => {
+    const zip = new JSZip()
+    zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+    addPresentation(zip, ['slides/slide1.xml'])
+    zip.file('ppt/slides/slide1.xml', `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:graphicFrame><a:graphic><a:graphicData><a:tbl><a:tr><a:tc><a:txBody><a:p><a:r><a:t>Client</a:t></a:r><a:r><a:t> Name</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Acme</a:t></a:r></a:p></a:txBody></a:tc></a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame></p:spTree></p:cSld></p:sld>`)
+    await expect(extractSlidesFromPptx(await zip.generateAsync({ type: 'nodebuffer' }))).resolves.toEqual([
+      { slideNumber: 1, title: 'Client Name Acme', content: 'Client Name Acme' },
+    ])
+  })
+
+  it('rejects slide counts and expanded sizes over parser limits', () => {
+    expect(() => validateSlideResourceLimits(Array.from({ length: 501 }, () => 1))).toThrow('Invalid PPTX package')
+    expect(() => validateSlideResourceLimits([5 * 1024 * 1024 + 1])).toThrow('Invalid PPTX package')
+    expect(() => validateSlideResourceLimits(Array.from({ length: 11 }, () => 5 * 1024 * 1024))).toThrow('Invalid PPTX package')
+  })
+
+  it.each([
+    ['missing', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'],
+    ['external', '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="https://example.com/slide.xml" TargetMode="External"/></Relationships>'],
+  ])('rejects %s presentation slide relationships', async (_, relationships) => {
+    const zip = new JSZip()
+    zip.file('[Content_Types].xml', '<Types/>')
+    zip.file('ppt/presentation.xml', '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst><p:sldId r:id="rId1"/></p:sldIdLst></p:presentation>')
+    zip.file('ppt/_rels/presentation.xml.rels', relationships)
+    zip.file('ppt/slides/slide1.xml', '<p:sld/>')
+    await expect(extractSlidesFromPptx(await zip.generateAsync({ type: 'nodebuffer' }))).rejects.toThrow('Invalid PPTX package')
   })
 
   it('rejects corrupt zip data', async () => {

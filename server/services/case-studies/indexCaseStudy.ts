@@ -10,6 +10,15 @@ import { uploadFile } from '../supabase/storage'
 import { extractSlidesFromPptx } from '../pptx/extractSlides'
 
 export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+const MAX_STORAGE_FILE_NAME_LENGTH = 180
+
+export function storageFileName(fileName: string): string {
+  const basename = fileName.replace(/\\/g, '/').split('/').pop() || 'upload.pptx'
+  const safe = basename.replace(/[\u0000-\u001f\u007f]/g, '_').replace(/[^A-Za-z0-9._-]/g, '_')
+  if (safe.length <= MAX_STORAGE_FILE_NAME_LENGTH) return safe
+  const extension = safe.toLowerCase().endsWith('.pptx') ? '.pptx' : ''
+  return `${safe.slice(0, MAX_STORAGE_FILE_NAME_LENGTH - extension.length)}${extension}`
+}
 
 export interface IndexCaseStudyInput {
   buffer: Buffer
@@ -57,7 +66,7 @@ export async function indexCaseStudy(
   if (!saved) throw new Error('Failed to create case study')
 
   try {
-    const storagePath = `${saved.id}/${input.fileName}`
+    const storagePath = `${saved.id}/${storageFileName(input.fileName)}`
     await deps.uploadFile('case-studies', storagePath, input.buffer, PPTX_MIME)
     await deps.updateFilePath(saved.id, storagePath)
     const extracted = await deps.extractSlides(input.buffer)
@@ -68,7 +77,7 @@ export async function indexCaseStudy(
     })))
     await deps.updateStatus(saved.id, 'indexed')
     const completed = await deps.getCaseStudy(saved.id)
-    if (!completed || completed.status !== 'indexed') {
+    if (!completed || completed.status !== 'indexed' || completed.slides.length !== extracted.length) {
       throw new Error('Case study indexing did not complete')
     }
     return completed

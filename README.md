@@ -82,7 +82,7 @@ In Supabase SQL editor, execute `supabase/migrations/001_initial_schema.sql`:
 - Sets up foreign keys, indexes, check constraints
 
 ### 3. Create storage buckets
-In Supabase Storage, create 3 public buckets:
+In Supabase Storage, create 3 **private** buckets (public access must remain disabled; downloads use short-lived signed URLs):
 - `case-studies` — uploaded PPTX case study decks
 - `rfps` — uploaded RFP documents
 - `proposals` — generated proposal PPTX files

@@ -8,6 +8,11 @@ export interface ExtractedSlide {
 }
 
 type OrderedNode = Record<string, unknown>
+type SizedZipObject = JSZipObject & { _data?: { uncompressedSize?: number } }
+
+const MAX_SLIDES = 500
+const MAX_SLIDE_XML_BYTES = 5 * 1024 * 1024
+const MAX_TOTAL_SLIDE_XML_BYTES = 50 * 1024 * 1024
 
 const parser = new XMLParser({
   preserveOrder: true,
@@ -19,13 +24,22 @@ const parser = new XMLParser({
   maxNestedTags: 200,
 })
 
-function normalizeText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim()
+function invalidPackage(): never {
+  throw new Error('Invalid PPTX package')
 }
 
-function slideNumber(entry: JSZipObject): number | null {
-  const match = /^ppt\/slides\/slide(\d+)\.xml$/.exec(entry.name)
-  return match ? Number(match[1]) : null
+export function validateSlideResourceLimits(sizes: number[]): void {
+  if (sizes.length > MAX_SLIDES) invalidPackage()
+  let total = 0
+  for (const size of sizes) {
+    if (!Number.isFinite(size) || size < 0 || size > MAX_SLIDE_XML_BYTES) invalidPackage()
+    total += size
+    if (total > MAX_TOTAL_SLIDE_XML_BYTES) invalidPackage()
+  }
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
 }
 
 function textFromNode(node: unknown): string[] {
@@ -41,19 +55,26 @@ function textFromNode(node: unknown): string[] {
   })
 }
 
-function collectShapeNodes(node: unknown): unknown[] {
-  if (Array.isArray(node)) return node.flatMap(collectShapeNodes)
-  if (!node || typeof node !== 'object') return []
+function containsKey(node: unknown, wanted: string): boolean {
+  if (Array.isArray(node)) return node.some(item => containsKey(item, wanted))
+  if (!node || typeof node !== 'object') return false
+  return Object.entries(node as OrderedNode).some(([key, value]) => key === wanted || containsKey(value, wanted))
+}
 
-  return Object.entries(node as OrderedNode).flatMap(([key, value]) =>
-    key === 'p:sp' ? [value] : collectShapeNodes(value),
-  )
+function collectTextContainers(node: unknown): unknown[] {
+  if (Array.isArray(node)) return node.flatMap(collectTextContainers)
+  if (!node || typeof node !== 'object') return []
+  const result: unknown[] = []
+  for (const [key, value] of Object.entries(node as OrderedNode)) {
+    if (key === 'p:sp' || (key === 'p:graphicFrame' && containsKey(value, 'a:tbl'))) result.push(value)
+    else result.push(...collectTextContainers(value))
+  }
+  return result
 }
 
 function isTitlePlaceholder(node: unknown): boolean {
   if (Array.isArray(node)) return node.some(isTitlePlaceholder)
   if (!node || typeof node !== 'object') return false
-
   const orderedNode = node as OrderedNode
   if ('p:ph' in orderedNode) {
     const attributes = orderedNode[':@']
@@ -62,17 +83,55 @@ function isTitlePlaceholder(node: unknown): boolean {
       if (type === 'title' || type === 'ctrTitle') return true
     }
   }
-
   return Object.values(orderedNode).some(isTitlePlaceholder)
+}
+
+function parseOrderedXml(xml: string): OrderedNode[] {
+  if (XMLValidator.validate(xml) !== true) invalidPackage()
+  return parser.parse(xml) as OrderedNode[]
+}
+
+function recordsWithKey(node: unknown, key: string): OrderedNode[] {
+  if (Array.isArray(node)) return node.flatMap(item => recordsWithKey(item, key))
+  if (!node || typeof node !== 'object') return []
+  const record = node as OrderedNode
+  return [
+    ...(key in record ? [record] : []),
+    ...Object.values(record).flatMap(value => recordsWithKey(value, key)),
+  ]
+}
+
+function attributes(record: OrderedNode): OrderedNode {
+  const value = record[':@']
+  return value && typeof value === 'object' ? value as OrderedNode : {}
+}
+
+function presentationSlidePaths(presentationXml: string, relationshipsXml: string): string[] {
+  const ids = recordsWithKey(parseOrderedXml(presentationXml), 'p:sldId')
+    .map(record => attributes(record)['@_r:id'])
+  if (!ids.length || ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) invalidPackage()
+
+  const relationships = new Map<string, string>()
+  for (const record of recordsWithKey(parseOrderedXml(relationshipsXml), 'Relationship')) {
+    const attrs = attributes(record)
+    if (attrs['@_Type'] !== 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide') continue
+    const id = attrs['@_Id']
+    const target = attrs['@_Target']
+    if (typeof id !== 'string' || typeof target !== 'string' || attrs['@_TargetMode'] === 'External'
+      || !/^slides\/slide\d+\.xml$/.test(target) || relationships.has(id)) invalidPackage()
+    relationships.set(id, `ppt/${target}`)
+  }
+  const paths = ids.map(id => relationships.get(id as string))
+  if (paths.some(path => !path) || new Set(paths).size !== paths.length) invalidPackage()
+  return paths as string[]
 }
 
 function parseSlide(xml: string, number: number): ExtractedSlide {
   const validation = XMLValidator.validate(xml)
   if (validation !== true) throw new Error(`Invalid slide XML at slide ${number}`)
-  const ordered = parser.parse(xml) as OrderedNode[]
-  const shapes = collectShapeNodes(ordered)
-  const blocks = shapes.map(shape => textFromNode(shape).join(' ')).filter(Boolean)
-  const titleShape = shapes.find(isTitlePlaceholder)
+  const containers = collectTextContainers(parser.parse(xml) as OrderedNode[])
+  const blocks = containers.map(container => textFromNode(container).join(' ')).filter(Boolean)
+  const titleShape = containers.find(isTitlePlaceholder)
   return {
     slideNumber: number,
     title: titleShape ? textFromNode(titleShape).join(' ') : (blocks[0] ?? ''),
@@ -88,19 +147,29 @@ export async function extractSlidesFromPptx(buffer: Buffer): Promise<ExtractedSl
     throw new Error('Invalid PPTX file')
   }
 
-  const entries = Object.values(zip.files)
-  const slideEntries = entries
-    .map(entry => ({ entry, number: slideNumber(entry) }))
-    .filter((item): item is { entry: JSZipObject; number: number } => item.number !== null)
-    .sort((left, right) => left.number - right.number)
+  const contentTypes = zip.file('[Content_Types].xml')
+  const presentation = zip.file('ppt/presentation.xml')
+  const presentationRels = zip.file('ppt/_rels/presentation.xml.rels')
+  if (!contentTypes || !presentation || !presentationRels) invalidPackage()
 
-  if (!zip.file('[Content_Types].xml') || !zip.file('ppt/presentation.xml') || slideEntries.length === 0) {
-    throw new Error('Invalid PPTX package')
-  }
-
-  const slides = await Promise.all(
-    slideEntries.map(async ({ entry }, index) => parseSlide(await entry.async('string'), index + 1)),
+  const paths = presentationSlidePaths(
+    await presentation.async('string'),
+    await presentationRels.async('string'),
   )
+  const entries = paths.map(path => zip.file(path))
+  if (entries.some(entry => !entry)) invalidPackage()
+  validateSlideResourceLimits(entries.map(entry => (entry as SizedZipObject)._data?.uncompressedSize ?? Number.NaN))
+
+  const slides: ExtractedSlide[] = []
+  let actualTotal = 0
+  for (const [index, entry] of entries.entries()) {
+    const xml = await (entry as JSZipObject).async('string')
+    const size = Buffer.byteLength(xml)
+    validateSlideResourceLimits([size])
+    actualTotal += size
+    if (actualTotal > MAX_TOTAL_SLIDE_XML_BYTES) invalidPackage()
+    slides.push(parseSlide(xml, index + 1))
+  }
 
   if (slides.every(slide => !slide.content)) throw new Error('PPTX contains no extractable text')
   return slides

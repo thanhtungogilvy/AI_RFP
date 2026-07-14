@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from '../../services/supabase/client'
 import { indexCaseStudy, PPTX_MIME } from '../../services/case-studies/indexCaseStudy'
 
 const ACCEPTED_CONTENT_TYPES = new Set([PPTX_MIME, 'application/octet-stream'])
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 export function validatePptxUpload(fileName: string, contentType?: string): void {
   if (!/\.pptx$/i.test(fileName)) {
@@ -12,9 +13,10 @@ export function validatePptxUpload(fileName: string, contentType?: string): void
   }
 }
 
-function isHttpError(error: unknown): error is { statusCode: number } {
+function isIntentionalHttpError(error: unknown): error is { statusCode: number } {
   return typeof error === 'object' && error !== null
     && 'statusCode' in error && typeof error.statusCode === 'number'
+    && ((error.statusCode >= 400 && error.statusCode < 500) || error.statusCode === 503)
 }
 
 function isPptxValidationError(error: unknown): error is Error {
@@ -26,9 +28,21 @@ function isPptxValidationError(error: unknown): error is Error {
   )
 }
 
-export default defineEventHandler(async (event) => {
+interface UploadDependencies {
+  readMultipartFormData: typeof readMultipartFormData
+  isSupabaseConfigured: typeof isSupabaseConfigured
+  indexCaseStudy: typeof indexCaseStudy
+}
+
+const defaultDependencies: UploadDependencies = {
+  readMultipartFormData,
+  isSupabaseConfigured,
+  indexCaseStudy,
+}
+
+export async function handleCaseStudyUpload(event: Parameters<typeof readMultipartFormData>[0], deps: UploadDependencies = defaultDependencies) {
   try {
-    const parts = await readMultipartFormData(event)
+    const parts = await deps.readMultipartFormData(event)
     if (!parts?.length) throw createError({ statusCode: 400, statusMessage: 'No file provided' })
 
     const filePart = parts.find(part => part.name === 'file')
@@ -37,8 +51,11 @@ export default defineEventHandler(async (event) => {
     }
 
     validatePptxUpload(filePart.filename, filePart.type)
+    if (filePart.data.length > MAX_UPLOAD_BYTES) {
+      throw createError({ statusCode: 413, statusMessage: 'PPTX file exceeds 50 MiB limit' })
+    }
 
-    if (!isSupabaseConfigured()) {
+    if (!deps.isSupabaseConfigured()) {
       throw createError({
         statusCode: 503,
         statusMessage: 'Case study indexing requires Supabase configuration',
@@ -49,7 +66,7 @@ export default defineEventHandler(async (event) => {
     const clientPart = parts.find(part => part.name === 'client')?.data?.toString()
     const industryPart = parts.find(part => part.name === 'industry')?.data?.toString()
 
-    return await indexCaseStudy({
+    return await deps.indexCaseStudy({
       buffer: filePart.data,
       fileName: filePart.filename,
       title: titlePart || filePart.filename.replace(/\.pptx$/i, ''),
@@ -57,10 +74,13 @@ export default defineEventHandler(async (event) => {
       industry: industryPart || '',
     })
   } catch (error) {
-    if (isHttpError(error)) throw error
+    if (isIntentionalHttpError(error)) throw error
     if (isPptxValidationError(error)) {
       throw createError({ statusCode: 400, statusMessage: error.message })
     }
-    throw createError({ statusCode: 500, statusMessage: 'Failed to index case study' })
+    console.error('Case study indexing failed', error)
+    throw createError({ statusCode: 500, statusMessage: 'Case study indexing failed' })
   }
-})
+}
+
+export default defineEventHandler(event => handleCaseStudyUpload(event))

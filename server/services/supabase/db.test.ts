@@ -6,12 +6,21 @@ const { getSupabaseClient } = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ getSupabaseClient }))
 
-import { dbInsertCaseStudySlides, dbUpdateCaseStudyFilePath } from './db'
+import { dbGetCaseStudyById, dbInsertCaseStudy, dbInsertCaseStudySlides, dbUpdateCaseStudyFilePath, dbUpdateCaseStudyStatus } from './db'
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('createError', ({ statusCode, statusMessage }: { statusCode: number; statusMessage: string }) =>
     Object.assign(new Error(statusMessage), { statusCode, statusMessage }))
+})
+
+it('returns early from case-study write/read helpers when Supabase is unconfigured', async () => {
+  getSupabaseClient.mockReturnValue(null)
+  await expect(dbGetCaseStudyById('id')).resolves.toBeNull()
+  await expect(dbInsertCaseStudy({ id: '', title: '', client: '', industry: '', summary: '', tags: [], fileName: '', uploadedAt: '', status: 'processing' })).resolves.toBeNull()
+  await expect(dbUpdateCaseStudyStatus('id', 'error')).resolves.toBeUndefined()
+  await expect(dbUpdateCaseStudyFilePath('id', 'path')).resolves.toBeUndefined()
+  await expect(dbInsertCaseStudySlides('id', [])).resolves.toBeUndefined()
 })
 
 describe('dbUpdateCaseStudyFilePath', () => {
