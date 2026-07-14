@@ -68,7 +68,9 @@ export async function indexCaseStudy(
     })))
     await deps.updateStatus(saved.id, 'indexed')
     const completed = await deps.getCaseStudy(saved.id)
-    if (!completed) throw new Error('Failed to retrieve indexed case study')
+    if (!completed || completed.status !== 'indexed') {
+      throw new Error('Case study indexing did not complete')
+    }
     return completed
   } catch (error) {
     try {

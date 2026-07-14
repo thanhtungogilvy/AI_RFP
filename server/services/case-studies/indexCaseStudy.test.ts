@@ -77,6 +77,15 @@ describe('indexCaseStudy', () => {
     expect(deps.updateStatus).not.toHaveBeenCalledWith(saved.id, 'indexed')
   })
 
+  it('rejects a refetched record that is not indexed and marks it as error', async () => {
+    const deps = makeDeps()
+    deps.getCaseStudy.mockResolvedValue(saved)
+
+    await expect(indexCaseStudy(input, deps)).rejects.toThrow('Case study indexing did not complete')
+    expect(deps.updateStatus).toHaveBeenNthCalledWith(1, saved.id, 'indexed')
+    expect(deps.updateStatus).toHaveBeenNthCalledWith(2, saved.id, 'error')
+  })
+
   it('preserves extraction failures when marking the record as error also fails', async () => {
     const deps = makeDeps()
     const failure = new Error('extraction failed')
