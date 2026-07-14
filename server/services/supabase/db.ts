@@ -145,6 +145,37 @@ export async function dbUpdateCaseStudyStatus(
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
 }
 
+export async function dbUpdateCaseStudyFilePath(id: string, filePath: string): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+
+  const { error } = await (sb as any)
+    .from('case_studies')
+    .update({ file_path: filePath })
+    .eq('id', id)
+
+  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+}
+
+export async function dbInsertCaseStudySlides(
+  caseStudyId: string,
+  slides: Array<Pick<CaseStudySlide, 'slideIndex' | 'title' | 'content'>>
+): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+
+  const rows = slides.map(slide => ({
+    case_study_id: caseStudyId,
+    slide_index: slide.slideIndex,
+    title: slide.title,
+    content: slide.content,
+    tags: [],
+  }))
+  const { error } = await (sb as any).from('case_study_slides').insert(rows)
+
+  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+}
+
 // ── RFP Documents ─────────────────────────────────────────────────────────────
 
 export async function dbGetRfps(): Promise<RfpDocument[] | null> {
