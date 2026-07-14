@@ -1,0 +1,1 @@
+../.superpowers/AGENTS.md

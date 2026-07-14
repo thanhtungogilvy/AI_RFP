@@ -1,1 +1,1 @@
-../.superpowers-src/AGENTS.md
+../.agents/AGENTS.md
