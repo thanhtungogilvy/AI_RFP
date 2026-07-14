@@ -13,6 +13,7 @@ type SizedZipObject = JSZipObject & { _data?: { uncompressedSize?: number } }
 const MAX_SLIDES = 500
 const MAX_SLIDE_XML_BYTES = 5 * 1024 * 1024
 const MAX_TOTAL_SLIDE_XML_BYTES = 50 * 1024 * 1024
+const MAX_CONTROL_XML_BYTES = 1024 * 1024
 
 const parser = new XMLParser({
   preserveOrder: true,
@@ -36,6 +37,14 @@ export function validateSlideResourceLimits(sizes: number[]): void {
     total += size
     if (total > MAX_TOTAL_SLIDE_XML_BYTES) invalidPackage()
   }
+}
+
+export async function expandControlXml(entry: SizedZipObject): Promise<string> {
+  const metadataSize = entry._data?.uncompressedSize
+  if (!Number.isFinite(metadataSize) || (metadataSize as number) < 0 || (metadataSize as number) > MAX_CONTROL_XML_BYTES) invalidPackage()
+  const xml = await entry.async('string')
+  if (Buffer.byteLength(xml) > MAX_CONTROL_XML_BYTES) invalidPackage()
+  return xml
 }
 
 function normalizeText(value: string): string {
@@ -153,8 +162,8 @@ export async function extractSlidesFromPptx(buffer: Buffer): Promise<ExtractedSl
   if (!contentTypes || !presentation || !presentationRels) invalidPackage()
 
   const paths = presentationSlidePaths(
-    await presentation.async('string'),
-    await presentationRels.async('string'),
+    await expandControlXml(presentation as SizedZipObject),
+    await expandControlXml(presentationRels as SizedZipObject),
   )
   const entries = paths.map(path => zip.file(path))
   if (entries.some(entry => !entry)) invalidPackage()

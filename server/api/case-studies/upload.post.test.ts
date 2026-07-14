@@ -1,8 +1,10 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { PassThrough, Readable } from 'node:stream'
 
 type Validator = (fileName: string, contentType?: string) => void
 let validatePptxUpload: Validator
 let handleCaseStudyUpload: (event: any, deps: any) => Promise<unknown>
+let readBoundedMultipartFormData: (event: any, limit?: number) => Promise<any>
 
 beforeAll(async () => {
   vi.stubGlobal('createError', (input: { statusCode: number, statusMessage: string }) =>
@@ -10,7 +12,38 @@ beforeAll(async () => {
   )
   vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
   vi.stubGlobal('readMultipartFormData', vi.fn())
-  ;({ validatePptxUpload, handleCaseStudyUpload } = await import('./upload.post'))
+  ;({ validatePptxUpload, handleCaseStudyUpload, readBoundedMultipartFormData } = await import('./upload.post'))
+})
+
+describe('readBoundedMultipartFormData', () => {
+  it('preserves file and text fields for a bounded multipart stream', async () => {
+    const boundary = 'test-boundary'
+    const body = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="title"\r\n\r\nEvidence\r\n--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="deck.pptx"\r\nContent-Type: application/octet-stream\r\n\r\npptx\r\n--${boundary}--\r\n`)
+    const req = Readable.from([body.subarray(0, 20), body.subarray(20)]) as any
+    req.headers = { 'content-type': `multipart/form-data; boundary=${boundary}`, 'transfer-encoding': 'chunked' }
+    const parts = await readBoundedMultipartFormData({ method: 'POST', node: { req } }, 1024)
+    expect(parts).toEqual([
+      { name: 'title', data: Buffer.from('Evidence') },
+      { name: 'file', filename: 'deck.pptx', type: 'application/octet-stream', data: Buffer.from('pptx') },
+    ])
+  })
+
+  it('rejects an oversized chunked stream as soon as the limit is crossed', async () => {
+    let finalChunkWritten = false
+    const req = new PassThrough() as any
+    req.headers = { 'content-type': 'multipart/form-data; boundary=x', 'transfer-encoding': 'chunked' }
+    req.write(Buffer.alloc(6))
+    req.write(Buffer.alloc(6))
+    const timer = setTimeout(() => {
+      finalChunkWritten = true
+      req.end(Buffer.alloc(6))
+    }, 100)
+    await expect(readBoundedMultipartFormData({ method: 'POST', node: { req } }, 10)).rejects.toMatchObject({ statusCode: 413 })
+    clearTimeout(timer)
+    expect(finalChunkWritten).toBe(false)
+    expect(req.destroyed).toBe(false)
+    expect(req.isPaused()).toBe(true)
+  })
 })
 
 describe('handleCaseStudyUpload', () => {

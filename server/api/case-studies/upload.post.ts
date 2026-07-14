@@ -1,8 +1,50 @@
+import { readMultipartFormData as parseH3Multipart, type H3Event, type MultiPartData } from 'h3'
 import { isSupabaseConfigured } from '../../services/supabase/client'
 import { indexCaseStudy, PPTX_MIME } from '../../services/case-studies/indexCaseStudy'
 
 const ACCEPTED_CONTENT_TYPES = new Set([PPTX_MIME, 'application/octet-stream'])
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+export async function readBoundedMultipartFormData(event: H3Event, limit = MAX_UPLOAD_BYTES): Promise<MultiPartData[] | undefined> {
+  const request = event.node.req as typeof event.node.req & { rawBody?: Buffer }
+  const declaredLength = Number.parseInt(request.headers['content-length'] || '', 10)
+  if (Number.isFinite(declaredLength) && declaredLength > limit) {
+    throw createError({ statusCode: 413, statusMessage: 'Multipart request exceeds 50 MiB limit' })
+  }
+
+  request.rawBody = await new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = []
+    let total = 0
+    const cleanup = () => {
+      request.off('data', onData)
+      request.off('end', onEnd)
+      request.off('error', onError)
+    }
+    const onData = (value: Buffer | string) => {
+      const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value)
+      total += chunk.length
+      if (total > limit) {
+        cleanup()
+        request.pause()
+        reject(createError({ statusCode: 413, statusMessage: 'Multipart request exceeds 50 MiB limit' }))
+        return
+      }
+      chunks.push(chunk)
+    }
+    const onEnd = () => {
+      cleanup()
+      resolve(Buffer.concat(chunks, total))
+    }
+    const onError = (error: Error) => {
+      cleanup()
+      reject(error)
+    }
+    request.on('data', onData)
+    request.on('end', onEnd)
+    request.on('error', onError)
+  })
+  return parseH3Multipart(event)
+}
 
 export function validatePptxUpload(fileName: string, contentType?: string): void {
   if (!/\.pptx$/i.test(fileName)) {
@@ -29,18 +71,18 @@ function isPptxValidationError(error: unknown): error is Error {
 }
 
 interface UploadDependencies {
-  readMultipartFormData: typeof readMultipartFormData
+  readMultipartFormData: (event: H3Event) => Promise<MultiPartData[] | undefined>
   isSupabaseConfigured: typeof isSupabaseConfigured
   indexCaseStudy: typeof indexCaseStudy
 }
 
 const defaultDependencies: UploadDependencies = {
-  readMultipartFormData,
+  readMultipartFormData: readBoundedMultipartFormData,
   isSupabaseConfigured,
   indexCaseStudy,
 }
 
-export async function handleCaseStudyUpload(event: Parameters<typeof readMultipartFormData>[0], deps: UploadDependencies = defaultDependencies) {
+export async function handleCaseStudyUpload(event: H3Event, deps: UploadDependencies = defaultDependencies) {
   try {
     const parts = await deps.readMultipartFormData(event)
     if (!parts?.length) throw createError({ statusCode: 400, statusMessage: 'No file provided' })
