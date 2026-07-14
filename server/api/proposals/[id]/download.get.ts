@@ -1,14 +1,25 @@
+import { readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { getPptxPath } from '../../../services/proposal/generateProposal'
+
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
-  const query = getQuery(event)
-  const format = (query.format as string) ?? 'pptx'
+  if (!id) throw createError({ statusCode: 400, statusMessage: 'Missing proposal id' })
 
-  // TODO: Fetch the generated file URL from Supabase Storage by proposal id and format
-  // TODO: Stream the file or redirect to a signed Supabase Storage URL
+  const filePath = getPptxPath(id)
 
-  // Mock: return a placeholder response until real file generation is implemented
-  setResponseHeader(event, 'Content-Type', 'application/json')
-  return {
-    message: `Download for proposal ${id} in ${format} format is not yet implemented. Connect Supabase Storage to enable downloads.`,
+  if (!existsSync(filePath)) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: `Proposal file not found. Generate the proposal first.`,
+    })
   }
+
+  const buffer = await readFile(filePath)
+
+  setResponseHeader(event, 'Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+  setResponseHeader(event, 'Content-Disposition', `attachment; filename="proposal-${id}.pptx"`)
+  setResponseHeader(event, 'Content-Length', String(buffer.length))
+
+  return send(event, buffer)
 })

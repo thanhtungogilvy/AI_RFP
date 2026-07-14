@@ -29,7 +29,7 @@ Upload Case Studies (PPTX)
 | Database / Storage | Supabase (planned) |
 | Vector Search | Supabase pgvector (planned) |
 | AI Provider | LM Studio — local OpenAI-compatible API (planned) |
-| PPTX generation | pptxgenjs (planned) |
+| PPTX generation | pptxgenjs ✅ |
 
 ---
 
@@ -103,7 +103,7 @@ server/
     │   └── storage.ts              # File upload / signed URL helpers (TODO)
     ├── pptx/
     │   ├── extractSlides.ts        # Parse PPTX → CaseStudySlide[] (TODO)
-    │   └── generateProposalDeck.ts # Render proposal PPTX via pptxgenjs (TODO)
+    │   └── generateProposalDeck.ts # Render proposal PPTX via pptxgenjs ✅ (7 slide layouts)
     ├── ai/
     │   ├── provider.ts             # AI provider factory
     │   ├── lmStudio.ts             # LM Studio OpenAI-compatible client (TODO)
@@ -114,7 +114,7 @@ server/
     │   └── findRelevantCaseStudies.ts # Vector search + AI scoring (TODO)
     └── proposal/
         ├── buildProposalData.ts    # Assemble deck data from selected case studies (TODO)
-        └── generateProposal.ts     # Full orchestration pipeline (TODO)
+        └── generateProposal.ts     # Full orchestration pipeline ✅ (saves to .generated/proposals/)
 ```
 
 ---
@@ -176,7 +176,7 @@ server/
 | `useRecommendations(rfpId)` | `recommendations`, `analysis`, `loading`, `error`, `selectedIds` | `fetch()`, `toggleSelection(id)` |
 | `useProposalGeneration` | `proposal`, `loading`, `error` | `generate(rfpId, ids)`, `fetchProposal(id)` |
 
-All composables call Nitro API routes via `$fetch`. Mock data is returned at this stage.
+All composables call Nitro API routes via `$fetch`. Mock data is used for case studies and RFPs. Proposal generation calls the real pipeline.
 
 ---
 
@@ -199,6 +199,63 @@ interface Props extends /* @vue-ignore */ PrimitiveProps { ... }
 ```
 
 Required because the Vue SFC compiler in Nuxt 4 cannot statically resolve the `PrimitiveProps` type imported from `reka-ui`. The `@vue-ignore` directive tells the compiler to skip the base type — props still work correctly at runtime.
+
+### `~` alias does not cover `server/` in Nuxt 4
+
+In Nuxt 4, `~` (and `@`) resolves to the `app/` directory — **not the project root**.
+
+| Import path | Resolves to | Works? |
+|---|---|---|
+| `~/types/case-study` | `app/types/case-study` | ✅ (types live in `app/types/`) |
+| `~/server/services/…` | `app/server/services/…` | ❌ (`server/` is at project root) |
+
+**Rule:** All imports across files inside `server/` must use **relative paths**.
+
+```ts
+// ✅ correct — relative import inside server/
+import { generateProposal } from '../../services/proposal/generateProposal'
+
+// ❌ wrong — ~ resolves to app/, not project root
+import { generateProposal } from '~/server/services/proposal/generateProposal'
+```
+
+---
+
+## Proposal Generation — Real Implementation
+
+PPTX generation is fully implemented end-to-end. The pipeline on `POST /api/proposals/generate`:
+
+```
+request body { rfpId, selectedCaseStudyIds }
+  → generateProposal()               (server/services/proposal/generateProposal.ts)
+    → getRfp(), getCaseStudies()       (mock data; TODO: Supabase query)
+    → generateProposalDeck()           (server/services/pptx/generateProposalDeck.ts)
+      → pptxgenjs builds 7+ slides
+      → returns Buffer
+    → writeFile() to .generated/proposals/{id}.pptx
+  → returns ProposalGeneration with pptxUrl
+
+GET /api/proposals/{id}/download
+  → readFile() from .generated/proposals/{id}.pptx
+  → streams PPTX with correct Content-Type header
+```
+
+### Slide layout (16:9 widescreen, pptxgenjs)
+
+| # | Slide | Notes |
+|---|---|---|
+| 1 | Cover | Dark navy bg, title, client, date, accent bar |
+| 2 | Executive Summary | RFP summary + 3 value prop boxes |
+| 3 | Key RFP Requirements | Priority-coloured table (High/Medium/Low) |
+| 4 | Proposed Approach | 4-phase delivery cards |
+| 5 | Case Studies Overview | Numbered list of selected case studies |
+| 6–N | Per Case Study | Challenge / Solution / Results columns |
+| Last | Thank You / Next Steps | 4 action items + RFP deadline box |
+
+### Local file storage
+
+Generated files are stored at `.generated/proposals/{proposalId}.pptx` (gitignored).
+TODO: replace with Supabase Storage upload + signed URL.
 
 ---
 
@@ -223,17 +280,18 @@ To exercise the full demo flow:
 1. `/` → Dashboard
 2. `/rfps` → click **View Recommendations** on rfp-001
 3. `/rfps/rfp-001/recommendations` → review AI analysis, select case studies, click **Generate Proposal**
-4. `/proposals/proposal-demo-001` → download card
+4. Browser redirects to `/proposals/{generated-id}` → click **Download PPTX** to get the real `.pptx` file
 
 ---
 
-## Implementation Roadmap (TODOs)
+## Implementation Roadmap
 
 ### Phase 1 — Storage & File Handling
 - [ ] Configure Supabase project, set `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` env vars
 - [ ] Implement `server/services/supabase/storage.ts` (`uploadFile`, `getSignedUrl`)
 - [ ] Parse real multipart uploads in `upload.post.ts` routes
 - [ ] Integrate a PPTX parser in `server/services/pptx/extractSlides.ts`
+- [ ] Move generated PPTX files from local disk to Supabase Storage
 
 ### Phase 2 — AI Analysis
 - [ ] Start LM Studio with a capable model, set `LM_STUDIO_BASE_URL` env var
@@ -247,9 +305,10 @@ To exercise the full demo flow:
 - [ ] Implement `findRelevantCaseStudies.ts` using pgvector similarity search
 - [ ] Replace mock recommendations API with real service call
 
-### Phase 4 — Proposal Generation
-- [ ] Install `pptxgenjs`: `npm install pptxgenjs`
-- [ ] Design slide templates in `generateProposalDeck.ts`
-- [ ] Implement `buildProposalData.ts` and `generateProposal.ts` pipeline
-- [ ] Wire `/api/proposals/generate` to the real pipeline
-- [ ] Implement `/api/proposals/[id]/download` to stream PPTX from Supabase Storage
+### Phase 4 — Proposal Generation (persistence)
+- [x] `pptxgenjs` installed and integrated
+- [x] 7-slide proposal deck generated from real data
+- [x] PPTX saved locally and served via download endpoint
+- [ ] Persist `ProposalGeneration` record in Supabase DB
+- [ ] Replace local file storage with Supabase Storage
+- [ ] Add PDF export option
