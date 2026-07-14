@@ -4,10 +4,9 @@ import type { ProposalGeneration } from '~/types/proposal'
 import type { CaseStudy } from '~/types/case-study'
 import type { RfpDocument, RfpAnalysis } from '~/types/rfp'
 import { generateProposalDeck } from '../pptx/generateProposalDeck'
+import { dbGetCaseStudyById, dbGetRfpById, dbInsertProposal } from '../supabase/db'
 
-// ─── Local file storage ───────────────────────────────────────────────────────
-// Files are written to .generated/proposals/ relative to the project root.
-// TODO: Replace with Supabase Storage when available.
+// ── Local file storage ────────────────────────────────────────────────────────
 
 export function getProposalsDir(): string {
   return join(process.cwd(), '.generated', 'proposals')
@@ -17,7 +16,7 @@ export function getPptxPath(proposalId: string): string {
   return join(getProposalsDir(), `${proposalId}.pptx`)
 }
 
-// ─── Mock data (replaces Supabase queries) ────────────────────────────────────
+// ── Mock data (fallback when Supabase is not configured) ──────────────────────
 
 const MOCK_RFPS: RfpDocument[] = [
   {
@@ -110,44 +109,47 @@ const MOCK_ANALYSIS: RfpAnalysis = {
   analyzedAt: new Date().toISOString(),
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ── Data fetchers (Supabase → mock fallback) ──────────────────────────────────
 
-function getRfp(rfpId: string): RfpDocument {
-  // TODO: Replace with Supabase DB query
-  return MOCK_RFPS.find(r => r.id === rfpId) ?? MOCK_RFPS[0]
+async function getRfp(rfpId: string): Promise<RfpDocument> {
+  return (await dbGetRfpById(rfpId)) ?? MOCK_RFPS.find(r => r.id === rfpId) ?? MOCK_RFPS[0]
 }
 
-function getCaseStudies(ids: string[]): CaseStudy[] {
-  // TODO: Replace with Supabase DB query
+async function getCaseStudies(ids: string[]): Promise<CaseStudy[]> {
   if (!ids.length) return MOCK_CASE_STUDIES
-  return MOCK_CASE_STUDIES.filter(cs => ids.includes(cs.id))
+
+  const resolved = await Promise.all(
+    ids.map(id => dbGetCaseStudyById(id))
+  )
+
+  // If any were resolved from Supabase, use those; fall back to mock for nulls
+  const mixed = resolved.map((cs, i) => cs ?? MOCK_CASE_STUDIES.find(m => m.id === ids[i]))
+  return mixed.filter(Boolean) as CaseStudy[]
 }
 
 function getAnalysis(rfpId: string): RfpAnalysis | undefined {
-  // TODO: Replace with Supabase DB query
   return rfpId === 'rfp-001' ? MOCK_ANALYSIS : undefined
 }
 
-// ─── Main pipeline ────────────────────────────────────────────────────────────
+// ── Main pipeline ─────────────────────────────────────────────────────────────
 
 /**
- * Orchestrates the full proposal generation pipeline.
- * Generates a PPTX file and saves it locally under .generated/proposals/.
+ * Generates a PPTX proposal deck, saves it to disk, and persists the record
+ * in Supabase (if configured).
  */
 export async function generateProposal(
   rfpId: string,
   selectedCaseStudyIds: string[]
 ): Promise<ProposalGeneration> {
-  const proposalId = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-  const now = new Date().toISOString()
+  const proposalId  = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const now         = new Date().toISOString()
 
-  const rfp        = getRfp(rfpId)
-  const caseStudies = getCaseStudies(selectedCaseStudyIds)
+  const rfp         = await getRfp(rfpId)
+  const caseStudies = await getCaseStudies(selectedCaseStudyIds)
   const analysis    = getAnalysis(rfpId)
+  const title       = `Proposal for ${rfp.client}`
 
-  const title = `Proposal for ${rfp.client}`
-
-  // Generate the PPTX buffer
+  // Generate PPTX buffer
   const buffer = await generateProposalDeck({ rfp, analysis, caseStudies, title })
 
   // Save to local disk
@@ -155,7 +157,7 @@ export async function generateProposal(
   await mkdir(dir, { recursive: true })
   await writeFile(getPptxPath(proposalId), buffer)
 
-  return {
+  const proposal: ProposalGeneration = {
     id:                   proposalId,
     rfpId,
     title,
@@ -166,4 +168,9 @@ export async function generateProposal(
     createdAt:            now,
     completedAt:          new Date().toISOString(),
   }
+
+  // Persist record to Supabase (non-blocking — failure doesn't break the response)
+  await dbInsertProposal(proposal)
+
+  return proposal
 }

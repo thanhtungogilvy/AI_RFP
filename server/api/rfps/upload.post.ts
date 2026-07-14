@@ -1,21 +1,39 @@
 import type { RfpDocument } from '~/types/rfp'
+import { dbInsertRfp } from '../../services/supabase/db'
+import { uploadFile } from '../../services/supabase/storage'
+import { isSupabaseConfigured } from '../../services/supabase/client'
 
 export default defineEventHandler(async (event) => {
-  // TODO: Parse multipart form data and extract the uploaded RFP file (PDF/DOCX)
-  // TODO: Store file in Supabase Storage via server/services/supabase/storage.ts
-  // TODO: Extract text content from file
-  // TODO: Persist RfpDocument record in Supabase DB
-  // TODO: Return the created RfpDocument record
+  const parts = await readMultipartFormData(event)
+  if (!parts?.length) throw createError({ statusCode: 400, statusMessage: 'No file provided' })
 
-  const newRfp: RfpDocument = {
-    id: `rfp-${Date.now()}`,
-    title: 'New RFP Document',
-    client: 'Unknown Client',
-    industry: 'Unknown Industry',
-    fileName: 'uploaded-rfp.pdf',
-    uploadedAt: new Date().toISOString(),
+  const filePart = parts.find(p => p.name === 'file')
+  if (!filePart?.data || !filePart.filename) {
+    throw createError({ statusCode: 400, statusMessage: 'File field missing' })
+  }
+
+  const fileName  = filePart.filename
+  const title     = parts.find(p => p.name === 'title')?.data?.toString() ?? fileName.replace(/\.[^/.]+$/, '')
+  const client    = parts.find(p => p.name === 'client')?.data?.toString() ?? 'Unknown Client'
+  const industry  = parts.find(p => p.name === 'industry')?.data?.toString() ?? ''
+  const deadline  = parts.find(p => p.name === 'deadline')?.data?.toString() || undefined
+  const now       = new Date().toISOString()
+
+  const record: Omit<RfpDocument, 'id'> = {
+    title, client, industry, deadline, fileName,
+    uploadedAt: now,
     status: 'uploaded',
   }
 
-  return newRfp
+  if (isSupabaseConfigured()) {
+    const proposedId = `rfp-${Date.now()}`
+    const storagePath = `${proposedId}/${fileName}`
+    await uploadFile('rfps', storagePath, filePart.data, 'application/pdf')
+
+    const saved = await dbInsertRfp({ ...record, id: proposedId })
+    if (saved) return saved
+  }
+
+  // Mock fallback
+  return { id: `rfp-${Date.now()}`, ...record } satisfies RfpDocument
 })

@@ -1,24 +1,47 @@
 import type { CaseStudy } from '~/types/case-study'
+import { dbInsertCaseStudy } from '../../services/supabase/db'
+import { uploadFile } from '../../services/supabase/storage'
+import { isSupabaseConfigured } from '../../services/supabase/client'
 
 export default defineEventHandler(async (event) => {
-  // TODO: Parse multipart form data and extract the uploaded PPTX file
-  // TODO: Store file in Supabase Storage via server/services/supabase/storage.ts
-  // TODO: Extract slides via server/services/pptx/extractSlides.ts
-  // TODO: Index slides in Supabase vector DB for semantic search
-  // TODO: Return the created CaseStudy record
+  const parts = await readMultipartFormData(event)
+  if (!parts?.length) throw createError({ statusCode: 400, statusMessage: 'No file provided' })
 
-  const newCaseStudy: CaseStudy = {
-    id: `cs-${Date.now()}`,
-    title: 'New Case Study (Processing)',
-    client: 'Unknown Client',
-    industry: 'Unknown Industry',
-    summary: 'Being processed...',
-    tags: [],
-    slides: [],
-    fileName: 'uploaded-file.pptx',
-    uploadedAt: new Date().toISOString(),
-    status: 'processing',
+  const filePart = parts.find(p => p.name === 'file')
+  if (!filePart?.data || !filePart.filename) {
+    throw createError({ statusCode: 400, statusMessage: 'File field missing' })
   }
 
-  return newCaseStudy
+  const fileName = filePart.filename
+  const now = new Date().toISOString()
+  const proposedId = `cs-${Date.now()}`
+
+  const record: Omit<CaseStudy, 'slides'> = {
+    id:         proposedId,
+    title:      (parts.find(p => p.name === 'title')?.data?.toString() ?? fileName.replace(/\.pptx$/i, '')),
+    client:     parts.find(p => p.name === 'client')?.data?.toString() ?? 'Unknown Client',
+    industry:   parts.find(p => p.name === 'industry')?.data?.toString() ?? '',
+    summary:    '',
+    tags:       [],
+    fileName,
+    uploadedAt: now,
+    status:     'processing',
+  }
+
+  if (isSupabaseConfigured()) {
+    // Upload file to Supabase Storage
+    const storagePath = `${proposedId}/${fileName}`
+    await uploadFile('case-studies', storagePath, filePart.data, 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+
+    // Persist metadata to DB
+    const saved = await dbInsertCaseStudy(record)
+    if (saved) {
+      // TODO: Queue slide extraction job here
+      return saved
+    }
+  }
+
+  // Mock fallback (no Supabase)
+  return { ...record, slides: [] } satisfies CaseStudy
 })
+

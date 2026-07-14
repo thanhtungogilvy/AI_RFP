@@ -1,6 +1,7 @@
 import type { RfpDocument } from '~/types/rfp'
+import { dbGetRfps } from '../../services/supabase/db'
 
-const mockRfps: RfpDocument[] = [
+const MOCK: RfpDocument[] = [
   {
     id: 'rfp-001',
     title: 'Core Banking System Modernisation RFP',
@@ -24,5 +25,5 @@ const mockRfps: RfpDocument[] = [
 ]
 
 export default defineEventHandler(async () => {
-  return mockRfps
+  return (await dbGetRfps()) ?? MOCK
 })

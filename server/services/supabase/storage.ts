@@ -1,23 +1,56 @@
-// TODO: Implement file upload to Supabase Storage
-// import { supabase } from './client'
+import { getSupabaseClient } from './client'
 
+/**
+ * Upload a file buffer to a Supabase Storage bucket.
+ * Returns the storage object path (not a public URL — use getSignedUrl for downloads).
+ */
 export async function uploadFile(
-  _bucket: string,
-  _path: string,
-  _file: Buffer | Uint8Array,
-  _contentType: string
+  bucket: string,
+  path: string,
+  file: Buffer | Uint8Array,
+  contentType: string
 ): Promise<string> {
-  // TODO: Upload file to Supabase Storage bucket
-  // const { data, error } = await supabase.storage.from(bucket).upload(path, file, { contentType })
-  // if (error) throw error
-  // return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
-  throw new Error('Supabase Storage not yet configured')
+  const sb = getSupabaseClient()
+  if (!sb) throw new Error('Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.')
+
+  const { error } = await sb.storage
+    .from(bucket)
+    .upload(path, file, { contentType, upsert: true })
+
+  if (error) throw new Error(`Storage upload failed: ${error.message}`)
+  return path
 }
 
-export async function getSignedUrl(_bucket: string, _path: string, _expiresIn = 3600): Promise<string> {
-  // TODO: Generate a signed URL for file download
-  // const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn)
-  // if (error) throw error
-  // return data.signedUrl
-  throw new Error('Supabase Storage not yet configured')
+/**
+ * Generate a short-lived signed URL for private file downloads.
+ */
+export async function getSignedUrl(
+  bucket: string,
+  path: string,
+  expiresIn = 3600
+): Promise<string> {
+  const sb = getSupabaseClient()
+  if (!sb) throw new Error('Supabase is not configured.')
+
+  const { data, error } = await sb.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresIn)
+
+  if (error || !data?.signedUrl) throw new Error(`Failed to create signed URL: ${error?.message}`)
+  return data.signedUrl
 }
+
+/**
+ * Download a file from Supabase Storage as a Buffer.
+ */
+export async function downloadFile(bucket: string, path: string): Promise<Buffer> {
+  const sb = getSupabaseClient()
+  if (!sb) throw new Error('Supabase is not configured.')
+
+  const { data, error } = await sb.storage.from(bucket).download(path)
+  if (error || !data) throw new Error(`Storage download failed: ${error?.message}`)
+
+  const arrayBuffer = await data.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+

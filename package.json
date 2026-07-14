@@ -31,6 +31,7 @@
     "eslint": "^10.7.0",
     "prettier": "^3.9.5",
     "shadcn-vue": "^2.7.4",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vue-tsc": "^3.3.7"
   }
 }

@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs'
 import type { ProposalGeneration } from '~/types/proposal'
 import { getPptxPath } from '../../services/proposal/generateProposal'
+import { dbGetProposalById } from '../../services/supabase/db'
 
-const mockProposals: Record<string, ProposalGeneration> = {
+const MOCK_PROPOSALS: Record<string, ProposalGeneration> = {
   'proposal-demo-001': {
     id: 'proposal-demo-001',
     rfpId: 'rfp-001',
@@ -20,16 +21,18 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Missing proposal id' })
 
-  // Check mock store first (static demo proposal)
-  if (mockProposals[id]) return mockProposals[id]
+  // 1. Check static mock (demo proposal)
+  if (MOCK_PROPOSALS[id]) return MOCK_PROPOSALS[id]
 
-  // For dynamically generated proposals: reconstruct metadata from the PPTX file on disk.
-  // TODO: Replace with Supabase DB query when persistence is implemented.
-  const filePath = getPptxPath(id)
-  if (existsSync(filePath)) {
-    const proposal: ProposalGeneration = {
+  // 2. Query Supabase
+  const fromDb = await dbGetProposalById(id)
+  if (fromDb) return fromDb
+
+  // 3. Reconstruct from disk (generated proposals before Supabase was configured)
+  if (existsSync(getPptxPath(id))) {
+    return {
       id,
-      rfpId: 'rfp-001',
+      rfpId: '',
       title: 'Generated Proposal',
       status: 'completed',
       selectedCaseStudyIds: [],
@@ -37,8 +40,7 @@ export default defineEventHandler(async (event) => {
       pdfUrl: null,
       createdAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
-    }
-    return proposal
+    } satisfies ProposalGeneration
   }
 
   throw createError({ statusCode: 404, statusMessage: 'Proposal not found' })

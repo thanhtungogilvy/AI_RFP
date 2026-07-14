@@ -1,6 +1,7 @@
 import type { CaseStudy } from '~/types/case-study'
+import { dbGetCaseStudies } from '../../services/supabase/db'
 
-const mockCaseStudies: CaseStudy[] = [
+const MOCK: CaseStudy[] = [
   {
     id: 'cs-001',
     title: 'Digital Transformation for Vietcombank',
@@ -53,5 +54,5 @@ const mockCaseStudies: CaseStudy[] = [
 ]
 
 export default defineEventHandler(async () => {
-  return mockCaseStudies
+  return (await dbGetCaseStudies()) ?? MOCK
 })
