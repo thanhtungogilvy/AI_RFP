@@ -19,7 +19,6 @@ export default defineEventHandler(async (event) => {
 
   setResponseHeader(event, 'Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
   setResponseHeader(event, 'Content-Disposition', `attachment; filename="proposal-${id}.pptx"`)
-  setResponseHeader(event, 'Content-Length', String(buffer.length))
 
-  return send(event, buffer)
+  event.node.res.end(buffer)
 })

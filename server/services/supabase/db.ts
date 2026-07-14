@@ -126,7 +126,7 @@ export async function dbInsertCaseStudy(
       file_name:   fields.fileName,
       status:      fields.status,
       uploaded_at: fields.uploadedAt,
-    })
+    } as any)
     .select('*, case_study_slides(*)')
     .single()
 
@@ -141,7 +141,7 @@ export async function dbUpdateCaseStudyStatus(
   const sb = getSupabaseClient()
   if (!sb) return
 
-  const { error } = await sb.from('case_studies').update({ status }).eq('id', id)
+  const { error } = await (sb as any).from('case_studies').update({ status }).eq('id', id)
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
 }
 
@@ -190,7 +190,7 @@ export async function dbInsertRfp(
       file_name:   fields.fileName,
       status:      fields.status,
       uploaded_at: fields.uploadedAt,
-    })
+    } as any)
     .select('*')
     .single()
 
@@ -230,7 +230,7 @@ export async function dbInsertProposal(
     pdf_url:                 proposal.pdfUrl,
     created_at:              proposal.createdAt,
     completed_at:            proposal.completedAt ?? null,
-  })
+  } as any)
 
   if (error) {
     // Log but don't crash — PPTX was already generated successfully

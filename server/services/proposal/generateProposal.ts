@@ -111,8 +111,8 @@ const MOCK_ANALYSIS: RfpAnalysis = {
 
 // ── Data fetchers (Supabase → mock fallback) ──────────────────────────────────
 
-async function getRfp(rfpId: string): Promise<RfpDocument> {
-  return (await dbGetRfpById(rfpId)) ?? MOCK_RFPS.find(r => r.id === rfpId) ?? MOCK_RFPS[0]
+async function getRfp(rfpId: string): Promise<RfpDocument | undefined> {
+  return (await dbGetRfpById(rfpId)) ?? MOCK_RFPS.find(r => r.id === rfpId)
 }
 
 async function getCaseStudies(ids: string[]): Promise<CaseStudy[]> {
@@ -145,6 +145,12 @@ export async function generateProposal(
   const now         = new Date().toISOString()
 
   const rfp         = await getRfp(rfpId)
+  if (!rfp) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `RFP ${rfpId} not found`,
+    })
+  }
   const caseStudies = await getCaseStudies(selectedCaseStudyIds)
   const analysis    = getAnalysis(rfpId)
   const title       = `Proposal for ${rfp.client}`
