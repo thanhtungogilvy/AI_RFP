@@ -7,5 +7,9 @@ export default defineNuxtConfig({
   tailwindcss: {
     configPath: 'tailwind.config.ts'
   },
-  modules: ['@nuxtjs/tailwindcss', 'nuxt-svgo', '@vueuse/nuxt']
+  modules: ['@nuxtjs/tailwindcss', 'nuxt-svgo', '@vueuse/nuxt'],
+  components: [
+    // Use filename-only auto-import (no directory prefix) so <Button>, <AppShell>, etc. work directly
+    { path: '~/components', pathPrefix: false }
+  ]
 })
