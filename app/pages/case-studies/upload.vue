@@ -32,7 +32,7 @@ async function handleFile(file: File) {
 
     <div class="max-w-xl">
       <div v-if="uploadSuccess" class="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-        File uploaded successfully! Redirecting to knowledge base...
+        Presentation indexed successfully! Redirecting to the knowledge base...
       </div>
 
       <div v-else>
