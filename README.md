@@ -13,6 +13,7 @@ Nuxt 4 internal tool for presales teams to generate professional PPTX proposal d
 
 ### Backend & Services  
 - ✅ Real PPTX generation with 7 professional slide layouts (pptxgenjs)
+- ✅ Real, synchronous case-study PPTX extraction and slide indexing (JSZip + fast-xml-parser)
 - ✅ Supabase integration: client, storage, typed queries
 - ✅ Complete API routes: case-studies, rfps, proposals (upload, list, generate, download)
 - ✅ Multipart form file upload parsing
@@ -91,7 +92,9 @@ In Supabase Storage, create 3 public buckets:
 npm run dev
 ```
 
-All data now persists to Supabase automatically. Routes check Supabase first, fall back to mock data if unconfigured.
+All configured data now persists to Supabase automatically. Listing and search routes can fall back to mock data when Supabase is unconfigured. Case-study PPTX upload does not use a mock fallback: it requires both `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` and returns `503` without them.
+
+Case-study uploads are indexed synchronously in the upload request. The server stores the original PPTX in the `case-studies` bucket, extracts text from its slide XML with JSZip and fast-xml-parser, writes one-based slide rows to `case_study_slides`, and returns only after the case study reaches `indexed`. Invalid, malformed, or text-free decks are rejected; processing failures mark the case study as `error`.
 
 ## API Routes
 
@@ -99,7 +102,7 @@ All data now persists to Supabase automatically. Routes check Supabase first, fa
 |--------|----------|---------|
 | **Case Studies** | | |
 | GET | `/api/case-studies` | List all case studies |
-| POST | `/api/case-studies/upload` | Upload PPTX case study |
+| POST | `/api/case-studies/upload` | Upload, extract, and synchronously index a PPTX case study (Supabase required) |
 | GET | `/api/case-studies/search?q=` | Search case studies |
 | **RFPs** | | |
 | GET | `/api/rfps` | List all RFP documents |

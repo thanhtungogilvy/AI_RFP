@@ -3,6 +3,13 @@
 ## [2026-07-14] — TypeScript Verification & Documentation
 
 ### ✅ Completed
+- **Case-study PPTX indexing**: Uploads now run a real synchronous indexing pipeline
+  - Requires `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`; no mock upload fallback
+  - Stores the original deck in Supabase Storage and records its path
+  - Extracts ordered slide text with JSZip and fast-xml-parser
+  - Persists one-based slide rows, then transitions the case study to `indexed`
+  - Rejects invalid, malformed, and text-free decks and records processing failures as `error`
+
 - **TypeScript Checking**: Fixed all 8 TypeScript errors, `npx nuxi typecheck` now passes cleanly (0 errors in 4.2s)
   - Fixed Button component type imports (used `VariantProps` from CVA)
   - Added missing `lucide-vue-next` dependency for Checkbox and Dialog icons
@@ -42,11 +49,7 @@
    - Create 3 storage buckets (case-studies, rfps, proposals)
    - Restart dev server
 
-2. **Implement slide extraction** (optional)
-   - Wire `extractSlides.ts` to parse uploaded PPTX files
-   - Queue extraction job for background processing
-
-3. **Add AI analysis** (optional)
+2. **Add AI analysis** (optional)
    - Start LM Studio with a local model
    - Implement RFP analysis service
    - Wire recommendations endpoint

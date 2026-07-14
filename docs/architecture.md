@@ -34,8 +34,8 @@ Upload Case Studies (PPTX)
 - ✅ Complete DB query layer: 15+ typed helpers for all CRUD operations
 - ✅ All API routes updated: case-studies, rfps, proposals
 - ✅ Multipart form parsing for file uploads
-- ✅ Mock fallback pattern on all routes (graceful degradation)
-- ⏳ **TODO**: Slide extraction from uploaded PPTX files
+- ✅ Mock fallback on listing routes; case-study indexing explicitly requires Supabase
+- ✅ Synchronous case-study indexing: store PPTX, extract slide text with JSZip + fast-xml-parser, persist one-based slide rows, then mark `indexed`
 
 ### Phase 2 — PPTX Generation (100% Complete)
 - ✅ Real PPTX generation with 7 professional slide layouts (pptxgenjs)
@@ -62,7 +62,7 @@ Upload Case Studies (PPTX)
 | Frontend | Nuxt 4, Vue 3, TypeScript |
 | Styling | TailwindCSS, shadcn-vue |
 | Server | Nitro (Nuxt built-in) |
-| Database / Storage | Supabase (planned) |
+| Database / Storage | Supabase ✅ |
 | Vector Search | Supabase pgvector (planned) |
 | AI Provider | LM Studio — local OpenAI-compatible API (planned) |
 | PPTX generation | pptxgenjs ✅ |
@@ -135,10 +135,12 @@ server/
 │           └── download.get.ts     # GET  /api/proposals/:id/download
 └── services/
     ├── supabase/
-    │   ├── client.ts               # Supabase client singleton (TODO)
-    │   └── storage.ts              # File upload / signed URL helpers (TODO)
+    │   ├── client.ts               # Server-only Supabase client singleton ✅
+    │   └── storage.ts              # File upload / signed URL helpers ✅
+    ├── case-studies/
+    │   └── indexCaseStudy.ts       # Synchronous storage, extraction, and DB indexing ✅
     ├── pptx/
-    │   ├── extractSlides.ts        # Parse PPTX → CaseStudySlide[] (TODO)
+    │   ├── extractSlides.ts        # JSZip + fast-xml-parser slide text extraction ✅
     │   └── generateProposalDeck.ts # Render proposal PPTX via pptxgenjs ✅ (7 slide layouts)
     ├── ai/
     │   ├── provider.ts             # AI provider factory
@@ -212,7 +214,7 @@ server/
 | `useRecommendations(rfpId)` | `recommendations`, `analysis`, `loading`, `error`, `selectedIds` | `fetch()`, `toggleSelection(id)` |
 | `useProposalGeneration` | `proposal`, `loading`, `error` | `generate(rfpId, ids)`, `fetchProposal(id)` |
 
-All composables call Nitro API routes via `$fetch`. Mock data is used for case studies and RFPs. Proposal generation calls the real pipeline.
+All composables call Nitro API routes via `$fetch`. Listing routes can use mock case-study and RFP data when Supabase is unavailable. Case-study upload is different: it requires configured Supabase and completes storage, extraction, slide persistence, and status transition synchronously before returning. Proposal generation calls the real pipeline.
 
 ---
 
