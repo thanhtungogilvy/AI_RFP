@@ -73,8 +73,8 @@ Vector ranking owns `relevanceScore`; the chat model only supplies a human-reada
 | Styling | TailwindCSS, shadcn-vue |
 | Server | Nitro (Nuxt built-in) |
 | Database / Storage | Supabase ✅ |
-| Vector Search | Supabase pgvector (planned) |
-| AI Provider | LM Studio — local OpenAI-compatible API (planned) |
+| Vector Search | Supabase pgvector — slide-level cosine similarity |
+| AI Provider | LM Studio — local OpenAI-compatible chat and embeddings API |
 | PPTX generation | pptxgenjs ✅ |
 
 ---
@@ -154,12 +154,12 @@ server/
     │   └── generateProposalDeck.ts # Render proposal PPTX via pptxgenjs ✅ (7 slide layouts)
     ├── ai/
     │   ├── provider.ts             # AI provider factory
-    │   ├── lmStudio.ts             # LM Studio OpenAI-compatible client (TODO)
+    │   ├── lmStudio.ts             # LM Studio OpenAI-compatible chat and embedding client
     │   └── prompts.ts              # System prompts + prompt builders
     ├── rfp/
-    │   └── analyzeRfp.ts           # Extract requirements from RFP text (TODO)
+    │   └── analyzeRfp.ts           # Extract requirements from RFP text
     ├── recommendations/
-    │   └── findRelevantCaseStudies.ts # Vector search + AI scoring (TODO)
+    │   └── findRelevantCaseStudies.ts # Vector search, keyword fallback, and AI explanations
     └── proposal/
         ├── buildProposalData.ts    # Assemble deck data from selected case studies (TODO)
         └── generateProposal.ts     # Full orchestration pipeline ✅ (saves to .generated/proposals/)
@@ -224,7 +224,7 @@ server/
 | `useRecommendations(rfpId)` | `recommendations`, `analysis`, `loading`, `error`, `selectedIds` | `fetch()`, `toggleSelection(id)` |
 | `useProposalGeneration` | `proposal`, `loading`, `error` | `generate(rfpId, ids)`, `fetchProposal(id)` |
 
-All composables call Nitro API routes via `$fetch`. Listing routes can use mock case-study and RFP data when Supabase is unavailable. Case-study upload is different: it requires configured Supabase and completes storage, extraction, slide persistence, and status transition synchronously before returning. Proposal generation calls the real pipeline.
+All composables call Nitro API routes via `$fetch`. Empty Case Study and RFP lists show UI-only demo cards; they are not API-backed records. Case-study upload requires configured Supabase and completes storage, extraction, embedding, slide persistence, and the status transition synchronously before returning. Proposal generation calls the real pipeline.
 
 ---
 
@@ -307,9 +307,9 @@ TODO: replace with Supabase Storage upload + signed URL.
 
 ---
 
-## Mock API Data
+## Demo Data and Current Limitation
 
-The following mock records are available in the dev server out of the box:
+The UI shows lightweight demo cards when real list data is empty. These are presentation-only and do not create Supabase rows or RFP analysis records.
 
 **Case Studies (3 indexed)**
 - `cs-001` — Digital Transformation for Vietcombank (Banking)
@@ -324,10 +324,7 @@ The following mock records are available in the dev server out of the box:
 - `proposal-demo-001` — Proposal for ABC Bank — status: `completed`
 - PPTX URL: `/api/proposals/proposal-demo-001/download?format=pptx`
 
-To exercise the full demo flow:
-1. `/` → Dashboard
-2. `/rfps` → click **View Recommendations** on rfp-001
-3. `/rfps/rfp-001/recommendations` → review AI analysis, select case studies, click **Generate Proposal**
+To exercise the full live flow, configure Supabase and LM Studio, upload a real PPTX case study, then upload and analyze a text-bearing RFP. A demo card must not link to the real recommendation endpoint until guided local demo data is implemented.
 4. Browser redirects to `/proposals/{generated-id}` → click **Download PPTX** to get the real `.pptx` file
 
 ---
@@ -351,10 +348,10 @@ To exercise the full demo flow:
 - [ ] Store `RfpAnalysis` in Supabase DB
 
 ### Phase 3 — Vector Search & Recommendations
-- [ ] Enable `pgvector` extension in Supabase
-- [ ] Embed case study slides via AI embeddings and store vectors
-- [ ] Implement `findRelevantCaseStudies.ts` using pgvector similarity search
-- [ ] Replace mock recommendations API with real service call
+- [x] Enable pgvector through migration `003_case_study_slide_embeddings.sql`
+- [x] Embed case study slides with BGE-M3 and store 1024-dimensional vectors
+- [x] Implement slide-level pgvector search with keyword fallback
+- [x] Return strict-JSON LM Studio explanations with reason, requirements, confidence, and excerpts
 
 ### Phase 4 — Proposal Generation (persistence)
 - [x] `pptxgenjs` installed and integrated
