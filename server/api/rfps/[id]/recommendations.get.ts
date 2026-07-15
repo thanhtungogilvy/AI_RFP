@@ -1,5 +1,6 @@
 import type { RfpAnalysis } from '~/types/rfp'
 import type { CaseStudyRecommendation } from '~/types/recommendation'
+import { dbGetRfpAnalysis } from '../../../services/supabase/db'
 
 export default defineEventHandler(async (event) => {
   const rfpId = getRouterParam(event, 'id')
@@ -7,21 +8,20 @@ export default defineEventHandler(async (event) => {
   // TODO: Fetch real RfpAnalysis from Supabase DB
   // TODO: Call server/services/recommendations/findRelevantCaseStudies.ts
 
-  const analysis: RfpAnalysis = {
+  const mockAnalysis: RfpAnalysis = {
     rfpId: rfpId!,
+    clientName: 'ABC Bank',
+    industry: 'Banking & Finance',
+    businessProblems: ['Legacy core banking limits change velocity'],
+    requiredCapabilities: ['Cloud-native architecture', 'Zero-downtime deployment', 'Regulatory compliance'],
+    technicalRequirements: ['AWS or Azure', 'Open API / ISO 20022', '99.99% SLA'],
+    evaluationCriteria: ['Relevant banking delivery experience'],
     summary:
       'The client is seeking a vendor to modernise their core banking infrastructure with a focus on scalability, 24/7 availability, regulatory compliance, and integration with third-party fintech services.',
-    requirements: [
-      { id: 'req-1', category: 'Technical', description: 'Cloud-native architecture on AWS or Azure', priority: 'high' },
-      { id: 'req-2', category: 'Technical', description: 'Zero-downtime deployment capability', priority: 'high' },
-      { id: 'req-3', category: 'Compliance', description: 'SBV regulatory compliance (Circular 09/2020)', priority: 'high' },
-      { id: 'req-4', category: 'Integration', description: 'Open API / ISO 20022 support for third-party integrations', priority: 'medium' },
-      { id: 'req-5', category: 'Security', description: 'End-to-end encryption and SOC 2 Type II certification', priority: 'high' },
-      { id: 'req-6', category: 'Performance', description: '99.99% SLA with <200ms API response time', priority: 'medium' },
-    ],
-    keyThemes: ['cloud migration', 'banking modernisation', 'compliance', 'high availability', 'open banking'],
+    searchKeywords: ['cloud migration', 'banking modernisation', 'compliance', 'high availability', 'open banking'],
     analyzedAt: new Date().toISOString(),
   }
+  const analysis = await dbGetRfpAnalysis(rfpId!) ?? mockAnalysis
 
   const recommendations: CaseStudyRecommendation[] = [
     {

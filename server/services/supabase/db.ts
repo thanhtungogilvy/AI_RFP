@@ -4,7 +4,7 @@
  * All functions throw createError on Supabase query errors.
  */
 import type { CaseStudy, CaseStudySlide } from '~/types/case-study'
-import type { RfpDocument } from '~/types/rfp'
+import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
 import type { ProposalGeneration } from '~/types/proposal'
 import { getSupabaseClient } from './client'
 import type { CaseStudyRow, SlideRow, RfpRow, ProposalRow } from './types'
@@ -206,7 +206,7 @@ export async function dbGetRfpById(id: string): Promise<RfpDocument | null> {
 }
 
 export async function dbInsertRfp(
-  fields: Omit<RfpDocument, 'id'> & { id?: string }
+  fields: Omit<RfpDocument, 'id'> & { id?: string; filePath?: string; content?: string }
 ): Promise<RfpDocument | null> {
   const sb = getSupabaseClient()
   if (!sb) return null
@@ -214,6 +214,7 @@ export async function dbInsertRfp(
   const { data, error } = await sb
     .from('rfp_documents')
     .insert({
+      id:          fields.id,
       title:       fields.title,
       client:      fields.client,
       industry:    fields.industry,
@@ -221,12 +222,51 @@ export async function dbInsertRfp(
       file_name:   fields.fileName,
       status:      fields.status,
       uploaded_at: fields.uploadedAt,
+      file_path:   fields.filePath ?? null,
+      content:     fields.content ?? '',
     } as any)
     .select('*')
     .single()
 
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
   return mapRfp(data as RfpRow)
+}
+
+export async function dbGetRfpAnalysisInput(id: string): Promise<{ text: string } | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+  const { data, error } = await (sb as any).from('rfp_documents').select('content').eq('id', id).single()
+  if (error || !data) return null
+  return typeof data.content === 'string' ? { text: data.content } : null
+}
+
+export async function dbSaveRfpAnalysis(id: string, analysis: RfpAnalysis): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  const { error } = await (sb as any).from('rfp_documents').update({ analysis }).eq('id', id)
+  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+}
+
+export async function dbGetRfpAnalysis(id: string): Promise<RfpAnalysis | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+  const { data, error } = await (sb as any).from('rfp_documents').select('analysis').eq('id', id).single()
+  if (error || !data?.analysis) return null
+  return data.analysis as RfpAnalysis
+}
+
+export async function dbUpdateRfpStatus(id: string, status: RfpDocument['status']): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  const { error } = await (sb as any).from('rfp_documents').update({ status }).eq('id', id)
+  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+}
+
+export async function dbUpdateRfpFilePath(id: string, filePath: string): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  const { error } = await (sb as any).from('rfp_documents').update({ file_path: filePath }).eq('id', id)
+  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
 }
 
 // ── Proposals ─────────────────────────────────────────────────────────────────

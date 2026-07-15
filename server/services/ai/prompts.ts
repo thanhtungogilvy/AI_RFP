@@ -14,9 +14,9 @@ Always respond with valid JSON matching the requested schema.
 export function buildRfpAnalysisPrompt(rfpText: string): string {
   return `
 Analyze the following RFP document and extract:
-1. A concise summary (2-3 sentences)
-2. A list of specific requirements with category, description, and priority (high/medium/low)
-3. Key themes (array of strings)
+1. Client name and industry (use an empty string only if genuinely absent)
+2. Business problems, required capabilities, technical requirements, and evaluation criteria
+3. A concise summary (2-3 sentences) and search keywords for matching case studies
 
 RFP Document:
 ---
@@ -25,9 +25,14 @@ ${rfpText}
 
 Respond with JSON in this exact format:
 {
+  "clientName": "string",
+  "industry": "string",
+  "businessProblems": ["string"],
+  "requiredCapabilities": ["string"],
+  "technicalRequirements": ["string"],
+  "evaluationCriteria": ["string"],
   "summary": "string",
-  "requirements": [{ "id": "string", "category": "string", "description": "string", "priority": "high|medium|low" }],
-  "keyThemes": ["string"]
+  "searchKeywords": ["string"]
 }
 `.trim()
 }

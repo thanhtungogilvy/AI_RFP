@@ -55,6 +55,8 @@ export interface Database {
           deadline: string | null
           file_name: string
           file_path: string | null
+          content: string
+          analysis: unknown | null
           status: 'uploaded' | 'analyzing' | 'analyzed' | 'error'
           uploaded_at: string
           created_at: string

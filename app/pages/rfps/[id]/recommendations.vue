@@ -49,36 +49,26 @@ async function handleGenerate() {
         <div v-if="analysis" class="rounded-lg border border-border bg-card p-4">
           <p class="text-xs text-muted-foreground leading-relaxed mb-4">{{ analysis.summary }}</p>
 
-          <h3 class="mb-2 text-xs font-semibold text-foreground">Requirements</h3>
+          <h3 class="mb-2 text-xs font-semibold text-foreground">Required Capabilities</h3>
           <ul class="space-y-2">
             <li
-              v-for="req in analysis.requirements"
-              :key="req.id"
+              v-for="capability in analysis.requiredCapabilities"
+              :key="capability"
               class="flex items-start gap-2 text-xs"
             >
-              <span
-                class="mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                :class="{
-                  'bg-red-100 text-red-700': req.priority === 'high',
-                  'bg-yellow-100 text-yellow-700': req.priority === 'medium',
-                  'bg-gray-100 text-gray-600': req.priority === 'low',
-                }"
-              >
-                {{ req.priority }}
-              </span>
-              <span class="text-muted-foreground"><span class="font-medium text-foreground">{{ req.category }}:</span> {{ req.description }}</span>
+              <span class="text-muted-foreground">{{ capability }}</span>
             </li>
           </ul>
 
           <div class="mt-4">
-            <h3 class="mb-2 text-xs font-semibold text-foreground">Key Themes</h3>
+            <h3 class="mb-2 text-xs font-semibold text-foreground">Search Keywords</h3>
             <div class="flex flex-wrap gap-1">
               <span
-                v-for="theme in analysis.keyThemes"
-                :key="theme"
+                v-for="keyword in analysis.searchKeywords"
+                :key="keyword"
                 class="rounded-md bg-secondary px-1.5 py-0.5 text-xs text-secondary-foreground"
               >
-                {{ theme }}
+                {{ keyword }}
               </span>
             </div>
           </div>

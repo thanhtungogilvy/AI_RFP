@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { upload, loading, error } = useRfps()
+const { upload, analyze, loading, error } = useRfps()
 const router = useRouter()
 
 const uploadedFile = ref<File | null>(null)
@@ -23,6 +23,7 @@ async function handleSubmit() {
       client: client.value,
       industry: industry.value,
     })
+    await analyze(rfp.id)
     uploadSuccess.value = true
     setTimeout(() => router.push(`/rfps/${rfp.id}/recommendations`), 1500)
   } catch {

@@ -1,10 +1,3 @@
-export interface RfpRequirement {
-  id: string
-  category: string
-  description: string
-  priority: 'high' | 'medium' | 'low'
-}
-
 export interface RfpDocument {
   id: string
   title: string
@@ -18,8 +11,13 @@ export interface RfpDocument {
 
 export interface RfpAnalysis {
   rfpId: string
+  clientName: string
+  industry: string
+  businessProblems: string[]
+  requiredCapabilities: string[]
+  technicalRequirements: string[]
+  evaluationCriteria: string[]
   summary: string
-  requirements: RfpRequirement[]
-  keyThemes: string[]
+  searchKeywords: string[]
   analyzedAt: string
 }

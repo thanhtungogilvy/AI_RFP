@@ -1,10 +1,32 @@
-export default defineEventHandler(async (event) => {
+import { LMStudioUnavailableError } from '../../../services/ai/lmStudio'
+import { analyzeRfp } from '../../../services/rfp/analyzeRfp'
+import { dbGetRfpAnalysisInput, dbSaveRfpAnalysis, dbUpdateRfpStatus } from '../../../services/supabase/db'
+
+interface Dependencies {
+  getRfpInput: typeof dbGetRfpAnalysisInput
+  analyze: typeof analyzeRfp
+  saveAnalysis: typeof dbSaveRfpAnalysis
+  updateStatus: typeof dbUpdateRfpStatus
+}
+
+const defaultDependencies: Dependencies = { getRfpInput: dbGetRfpAnalysisInput, analyze: analyzeRfp, saveAnalysis: dbSaveRfpAnalysis, updateStatus: dbUpdateRfpStatus }
+
+export async function handleRfpAnalysis(event: Parameters<typeof getRouterParam>[0], deps: Dependencies = defaultDependencies) {
   const rfpId = getRouterParam(event, 'id')
+  if (!rfpId) throw createError({ statusCode: 400, statusMessage: 'RFP id is required' })
+  const input = await deps.getRfpInput(rfpId)
+  if (!input?.text) throw createError({ statusCode: 404, statusMessage: 'RFP text not found. Upload a text-bearing PDF or DOCX first.' })
+  await deps.updateStatus(rfpId, 'analyzing')
+  try {
+    const analysis = await deps.analyze(input.text, rfpId)
+    await deps.saveAnalysis(rfpId, analysis)
+    await deps.updateStatus(rfpId, 'analyzed')
+    return { analysis }
+  } catch (error) {
+    await deps.updateStatus(rfpId, 'error').catch(() => undefined)
+    if (error instanceof LMStudioUnavailableError) throw createError({ statusCode: 503, statusMessage: error.message })
+    throw error
+  }
+}
 
-  // TODO: Fetch RFP document text from Supabase Storage
-  // TODO: Call server/services/rfp/analyzeRfp.ts to extract requirements via LM Studio
-  // TODO: Persist RfpAnalysis record in Supabase DB
-  // TODO: Update RfpDocument status to 'analyzed'
-
-  return { rfpId, status: 'analysis_queued', message: 'RFP analysis has been queued.' }
-})
+export default defineEventHandler(event => handleRfpAnalysis(event))

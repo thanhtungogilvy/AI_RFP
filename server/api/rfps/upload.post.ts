@@ -1,7 +1,8 @@
 import type { RfpDocument } from '~/types/rfp'
-import { dbInsertRfp } from '../../services/supabase/db'
+import { dbInsertRfp, dbUpdateRfpFilePath } from '../../services/supabase/db'
 import { uploadFile } from '../../services/supabase/storage'
 import { isSupabaseConfigured } from '../../services/supabase/client'
+import { extractRfpText } from '../../services/rfp/extractRfpText'
 
 export default defineEventHandler(async (event) => {
   const parts = await readMultipartFormData(event)
@@ -26,12 +27,14 @@ export default defineEventHandler(async (event) => {
   }
 
   if (isSupabaseConfigured()) {
-    const proposedId = `rfp-${Date.now()}`
-    const storagePath = `${proposedId}/${fileName}`
-    await uploadFile('rfps', storagePath, filePart.data, 'application/pdf')
-
-    const saved = await dbInsertRfp({ ...record, id: proposedId })
-    if (saved) return saved
+    const content = await extractRfpText(filePart.data, fileName)
+    const saved = await dbInsertRfp({ ...record, content })
+    if (saved) {
+      const storagePath = `${saved.id}/${fileName}`
+      await uploadFile('rfps', storagePath, filePart.data, filePart.type || 'application/octet-stream')
+      await dbUpdateRfpFilePath(saved.id, storagePath)
+      return saved
+    }
   }
 
   // Mock fallback

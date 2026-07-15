@@ -216,7 +216,8 @@ function addRfpRequirementsSlide(prs: pptxgen, data: ProposalDeckData) {
   header(slide, 'Key RFP Requirements')
   footer(slide)
 
-  const requirements = data.analysis?.requirements ?? []
+  const requirements: Array<{ category: string; description: string; priority: 'high' | 'medium' | 'low' }> =
+    (data.analysis?.technicalRequirements ?? []).map(description => ({ category: 'Technical', description, priority: 'high' }))
 
   if (!requirements.length) {
     slide.addText('Requirements will be detailed following RFP analysis.', {
