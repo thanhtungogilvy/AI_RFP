@@ -8,6 +8,7 @@ import {
 } from '../supabase/db'
 import { uploadFile } from '../supabase/storage'
 import { extractSlidesFromPptx } from '../pptx/extractSlides'
+import { generateSlideEmbedding } from '../embeddings/generateEmbedding'
 
 export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const MAX_STORAGE_FILE_NAME_LENGTH = 180
@@ -36,6 +37,7 @@ export interface IndexCaseStudyDependencies {
   insertSlides: typeof dbInsertCaseStudySlides
   updateStatus: typeof dbUpdateCaseStudyStatus
   getCaseStudy: typeof dbGetCaseStudyById
+  generateSlideEmbedding: typeof generateSlideEmbedding
 }
 
 const defaultDependencies: IndexCaseStudyDependencies = {
@@ -46,6 +48,7 @@ const defaultDependencies: IndexCaseStudyDependencies = {
   insertSlides: dbInsertCaseStudySlides,
   updateStatus: dbUpdateCaseStudyStatus,
   getCaseStudy: dbGetCaseStudyById,
+  generateSlideEmbedding,
 }
 
 export async function indexCaseStudy(
@@ -70,11 +73,16 @@ export async function indexCaseStudy(
     await deps.uploadFile('case-studies', storagePath, input.buffer, PPTX_MIME)
     await deps.updateFilePath(saved.id, storagePath)
     const extracted = await deps.extractSlides(input.buffer)
-    await deps.insertSlides(saved.id, extracted.map(slide => ({
-      slideIndex: slide.slideNumber,
-      title: slide.title,
-      content: slide.content,
-    })))
+    const slides = await Promise.all(extracted.map(async (slide) => {
+      let embedding: number[] | null = null
+      try {
+        embedding = await deps.generateSlideEmbedding({ title: slide.title, content: slide.content })
+      } catch (error) {
+        console.error(`Failed to embed case study slide ${slide.slideNumber}`, error)
+      }
+      return { slideIndex: slide.slideNumber, title: slide.title, content: slide.content, embedding }
+    }))
+    await deps.insertSlides(saved.id, slides)
     await deps.updateStatus(saved.id, 'indexed')
     const completed = await deps.getCaseStudy(saved.id)
     if (!completed || completed.status !== 'indexed' || completed.slides.length !== extracted.length) {

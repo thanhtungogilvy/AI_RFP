@@ -38,11 +38,13 @@ export interface Database {
           content: string
           image_url: string | null
           tags: string[]
+          embedding: number[] | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['case_study_slides']['Row'], 'id' | 'created_at'> & {
+        Insert: Omit<Database['public']['Tables']['case_study_slides']['Row'], 'id' | 'created_at' | 'embedding'> & {
           id?: string
           created_at?: string
+          embedding?: number[] | null
         }
         Update: Partial<Database['public']['Tables']['case_study_slides']['Insert']>
       }

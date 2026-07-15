@@ -33,6 +33,7 @@ function makeDeps() {
     ]),
     insertSlides: vi.fn().mockResolvedValue(undefined),
     updateStatus: vi.fn().mockResolvedValue(undefined),
+    generateSlideEmbedding: vi.fn().mockResolvedValue([0.1, 0.2]),
     getCaseStudy: vi.fn().mockResolvedValue({ ...saved, status: 'indexed', slides: [
       { slideIndex: 1, title: 'Overview', content: 'Overview\nEvidence' },
     ] }),
@@ -53,11 +54,23 @@ describe('indexCaseStudy', () => {
     )
     expect(deps.updateFilePath).toHaveBeenCalledWith(saved.id, `${saved.id}/${input.fileName}`)
     expect(deps.insertSlides).toHaveBeenCalledWith(saved.id, [
-      { slideIndex: 1, title: 'Overview', content: 'Overview\nEvidence' },
+      { slideIndex: 1, title: 'Overview', content: 'Overview\nEvidence', embedding: [0.1, 0.2] },
     ])
     expect(deps.updateStatus).toHaveBeenLastCalledWith(saved.id, 'indexed')
     expect(result.status).toBe('indexed')
     expect(result.slides).toEqual([{ slideIndex: 1, title: 'Overview', content: 'Overview\nEvidence' }])
+  })
+
+  it('stores a slide without an embedding when LM Studio is unavailable', async () => {
+    const deps = makeDeps()
+    deps.generateSlideEmbedding.mockRejectedValue(new Error('offline'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await indexCaseStudy(input, deps)
+
+    expect(deps.insertSlides).toHaveBeenCalledWith(saved.id, [expect.objectContaining({ embedding: null })])
+    expect(deps.updateStatus).toHaveBeenCalledWith(saved.id, 'indexed')
+    error.mockRestore()
   })
 
   it('marks an indexed refetch as error when persisted slide count differs', async () => {

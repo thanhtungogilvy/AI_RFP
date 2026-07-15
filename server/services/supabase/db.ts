@@ -159,7 +159,7 @@ export async function dbUpdateCaseStudyFilePath(id: string, filePath: string): P
 
 export async function dbInsertCaseStudySlides(
   caseStudyId: string,
-  slides: Array<Pick<CaseStudySlide, 'slideIndex' | 'title' | 'content'>>
+  slides: Array<Pick<CaseStudySlide, 'slideIndex' | 'title' | 'content'> & { embedding?: number[] | null }>
 ): Promise<void> {
   const sb = getSupabaseClient()
   if (!sb) return
@@ -170,10 +170,42 @@ export async function dbInsertCaseStudySlides(
     title: slide.title,
     content: slide.content,
     tags: [],
+    embedding: slide.embedding ?? null,
   }))
   const { error } = await (sb as any).from('case_study_slides').insert(rows)
 
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+}
+
+export interface VectorSlideMatch {
+  slideId: string
+  caseStudyId: string
+  caseStudyTitle: string
+  caseStudyClient: string
+  caseStudyIndustry: string
+  slideIndex: number
+  slideTitle: string
+  slideContent: string
+  similarity: number
+}
+
+export async function dbMatchCaseStudySlides(
+  queryEmbedding: number[], matchThreshold = 0.45, matchCount = 20,
+): Promise<VectorSlideMatch[]> {
+  const sb = getSupabaseClient()
+  if (!sb) throw new Error('Supabase vector search is not configured')
+  const { data, error } = await (sb as any).rpc('match_case_study_slides', {
+    query_embedding: queryEmbedding,
+    match_threshold: matchThreshold,
+    match_count: matchCount,
+  })
+  if (error) throw new Error(`Supabase vector search failed: ${error.message}`)
+  return (data ?? []).map((row: any) => ({
+    slideId: row.slide_id, caseStudyId: row.case_study_id,
+    caseStudyTitle: row.case_study_title, caseStudyClient: row.case_study_client,
+    caseStudyIndustry: row.case_study_industry, slideIndex: row.slide_index,
+    slideTitle: row.slide_title, slideContent: row.slide_content, similarity: row.similarity,
+  }))
 }
 
 // ── RFP Documents ─────────────────────────────────────────────────────────────

@@ -62,8 +62,8 @@ describe('dbInsertCaseStudySlides', () => {
     expect(from).toHaveBeenCalledWith('case_study_slides')
     expect(insert).toHaveBeenCalledTimes(1)
     expect(insert).toHaveBeenCalledWith([
-      { case_study_id: 'case-study-1', slide_index: 1, title: 'Overview', content: 'The overview', tags: [] },
-      { case_study_id: 'case-study-1', slide_index: 2, title: 'Results', content: 'The results', tags: [] },
+      { case_study_id: 'case-study-1', slide_index: 1, title: 'Overview', content: 'The overview', tags: [], embedding: null },
+      { case_study_id: 'case-study-1', slide_index: 2, title: 'Results', content: 'The results', tags: [], embedding: null },
     ])
   })
 

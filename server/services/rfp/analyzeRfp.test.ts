@@ -14,7 +14,7 @@ describe('analyzeRfp', () => {
       searchKeywords: ['banking', 'cloud migration'],
     }))
 
-    await expect(analyzeRfp('RFP text', 'rfp-123', { complete })).resolves.toMatchObject({
+    await expect(analyzeRfp('RFP text', 'rfp-123', { complete, embed: vi.fn() })).resolves.toMatchObject({
       rfpId: 'rfp-123',
       clientName: 'Example Bank',
       requiredCapabilities: ['Cloud migration'],
@@ -24,7 +24,7 @@ describe('analyzeRfp', () => {
   })
 
   it('rejects malformed model output rather than returning untrusted data', async () => {
-    await expect(analyzeRfp('RFP text', 'rfp-123', { complete: vi.fn().mockResolvedValue('{invalid') }))
+    await expect(analyzeRfp('RFP text', 'rfp-123', { complete: vi.fn().mockResolvedValue('{invalid'), embed: vi.fn() }))
       .rejects.toThrow('LM Studio returned invalid RFP analysis JSON')
   })
 })

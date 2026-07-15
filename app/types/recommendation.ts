@@ -1,3 +1,10 @@
+export interface MatchedSlideExcerpt {
+  slideIndex: number
+  title: string
+  excerpt: string
+  similarity: number
+}
+
 export interface CaseStudyRecommendation {
   id: string
   rfpId: string
@@ -9,5 +16,6 @@ export interface CaseStudyRecommendation {
   confidenceScore: number
   reasons: string[]
   matchedRequirements: string[]
+  matchedSlideExcerpts: MatchedSlideExcerpt[]
   selected: boolean
 }
