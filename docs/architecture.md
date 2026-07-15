@@ -1,5 +1,7 @@
 # AI RFP Generator — Architecture & Implementation Notes
 
+> **Current-state document.** For setup and operations, use [Operations](operations.md). Historical phase notes later in this file are retained for context; the completed AI/vector capabilities described below supersede earlier “not started” references.
+
 ## Overview
 
 **AI RFP Generator** is a Nuxt 4 internal tool that helps presales/sales teams generate proposal decks from RFP documents.

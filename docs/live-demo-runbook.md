@@ -1,5 +1,15 @@
 # Live Demo Runbook
 
+## Presenter flow (under five minutes)
+
+1. Open **Case Studies** and show an indexed case study; upload a PPTX only if there is no real case study already available.
+2. Open **RFP Documents**, upload a text-bearing PDF/DOCX, then click **Analyze RFP**.
+3. Open **View Recommendations** and explain the vector relevance score, AI reason, matched requirements, evidence slides, and AI confidence.
+4. Select at least one case study and click **Generate Proposal**.
+5. Click **Download PPTX** on the result page.
+
+Demo cards on empty list pages only explain the UI; they do not create an RFP analysis or support the recommendation endpoint.
+
 ## Prerequisites
 
 - Supabase migrations `001`, `002`, and `003` have been applied.

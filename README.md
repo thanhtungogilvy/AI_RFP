@@ -1,8 +1,10 @@
 # AI_RFP — RFP Proposal Generator
 
+> Start here: [documentation index](docs/README.md) · [live demo runbook](docs/live-demo-runbook.md) · [operations guide](docs/operations.md)
+
 Nuxt 4 internal tool for presales teams to generate professional PPTX proposal decks from RFP documents using case study recommendations.
 
-## ✅ Hoàn thành
+## Current capabilities
 
 ### AI Matching & Explainability
 - ✅ LM Studio RFP analysis using `LMSTUDIO_CHAT_MODEL`

@@ -1,5 +1,7 @@
 # Changelog
 
+> Historical release notes only. Current setup and operational guidance lives in [docs/operations.md](docs/operations.md); items marked “next” in older entries are not a current roadmap.
+
 ## [2026-07-15] — Semantic Recommendations, AI Explanations & Demo Polish
 
 ### Added
