@@ -11,6 +11,21 @@ Score each recommendation by relevance (0-1) and explain the reasons clearly.
 Always respond with valid JSON matching the requested schema.
 `.trim()
 
+export const SYSTEM_PROMPT_RECOMMENDATION_EXPLAINER = `
+You are an expert presales consultant. Explain why already-selected case studies fit an RFP.
+Use only the RFP requirements and slide excerpts supplied. Do not invent facts.
+Always respond with valid JSON matching the requested schema.
+`.trim()
+
+export function buildRecommendationExplanationPrompt(requirements: string[], candidatesJson: string): string {
+  return `
+RFP requirements: ${JSON.stringify(requirements)}
+Selected case studies and evidence: ${candidatesJson}
+Return exactly: {"explanations":[{"caseStudyId":"string","reason":"string","matchedRequirements":["string"],"confidence":0}]}
+Include exactly one explanation per supplied caseStudyId. matchedRequirements must be copied from RFP requirements.
+`.trim()
+}
+
 export function buildRfpAnalysisPrompt(rfpText: string): string {
   return `
 Analyze the following RFP document and extract:

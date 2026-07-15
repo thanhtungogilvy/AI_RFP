@@ -3,6 +3,7 @@ import type { RfpAnalysis } from '~/types/rfp'
 import type { CaseStudy } from '~/types/case-study'
 import { buildRecommendationQuery, generateEmbedding } from '../embeddings/generateEmbedding'
 import { dbMatchCaseStudySlides, type VectorSlideMatch } from '../supabase/db'
+import { explainRecommendations } from './explainRecommendations'
 
 const MAX_RESULTS = 5
 const MAX_SLIDES = 3
@@ -77,8 +78,9 @@ function keywordRecommendations(analysis: RfpAnalysis, caseStudies: CaseStudy[])
 export interface RecommendationDependencies {
   generateEmbedding: typeof generateEmbedding
   matchSlides: typeof dbMatchCaseStudySlides
+  explain: typeof explainRecommendations
 }
-const defaultDependencies: RecommendationDependencies = { generateEmbedding, matchSlides: dbMatchCaseStudySlides }
+const defaultDependencies: RecommendationDependencies = { generateEmbedding, matchSlides: dbMatchCaseStudySlides, explain: explainRecommendations }
 
 export async function findRelevantCaseStudies(
   analysis: RfpAnalysis, caseStudies: CaseStudy[], deps: RecommendationDependencies = defaultDependencies,
@@ -89,9 +91,13 @@ export async function findRelevantCaseStudies(
     const matches = await deps.matchSlides(await deps.generateEmbedding(query))
     const groups = new Map<string, VectorSlideMatch[]>()
     for (const match of matches) groups.set(match.caseStudyId, [...(groups.get(match.caseStudyId) ?? []), match])
-    return [...groups.values()].map((group, index) => toRecommendation(analysis, group, index === 0))
+    const ranked = [...groups.values()].map((group, index) => toRecommendation(analysis, group, index === 0))
       .sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, MAX_RESULTS).map((item, index) => ({ ...item, selected: index === 0 }))
+    const explanations = await deps.explain(analysis, ranked)
+    const byId = new Map(explanations.map(item => [item.caseStudyId, item]))
+    return ranked.map(item => ({ ...item, reasons: [byId.get(item.caseStudyId)!.reason], matchedRequirements: byId.get(item.caseStudyId)!.matchedRequirements, confidenceScore: byId.get(item.caseStudyId)!.confidence }))
   } catch (error) {
+    if (error instanceof Error && error.name === 'RecommendationExplanationUnavailableError') throw error
     console.error('Semantic case-study recommendation failed; using keyword fallback', error)
     return keywordRecommendations(analysis, caseStudies)
   }

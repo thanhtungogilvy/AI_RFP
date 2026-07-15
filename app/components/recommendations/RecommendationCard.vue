@@ -38,7 +38,11 @@ const scoreColor = computed(() => {
         <p class="text-xs text-muted-foreground">
           {{ recommendation.caseStudyClient }} &middot; {{ recommendation.caseStudyIndustry }}
         </p>
-        <ul class="mt-2 space-y-1">
+        <p v-if="recommendation.reasons[0]" class="mt-3 text-xs text-foreground"><span class="font-semibold">Why recommended:</span> {{ recommendation.reasons[0] }}</p>
+        <div v-if="recommendation.matchedRequirements.length" class="mt-3 flex flex-wrap gap-1">
+          <span v-for="requirement in recommendation.matchedRequirements" :key="requirement" class="rounded bg-secondary px-1.5 py-0.5 text-xs">{{ requirement }}</span>
+        </div>
+        <ul v-if="recommendation.reasons.length > 1" class="mt-2 space-y-1">
           <li
             v-for="reason in recommendation.reasons"
             :key="reason"
@@ -51,8 +55,14 @@ const scoreColor = computed(() => {
           </li>
         </ul>
         <p class="mt-2 text-xs text-muted-foreground">
-          Confidence: <span class="font-medium text-foreground">{{ Math.round(recommendation.confidenceScore * 100) }}%</span>
+          AI confidence: <span class="font-medium text-foreground">{{ Math.round(recommendation.confidenceScore * 100) }}%</span>
         </p>
+        <div v-if="recommendation.matchedSlideExcerpts.length" class="mt-3 space-y-2">
+          <div v-for="slide in recommendation.matchedSlideExcerpts" :key="slide.slideIndex" class="rounded border border-border p-2 text-xs">
+            <p class="font-medium">Slide {{ slide.slideIndex }}{{ slide.title ? `: ${slide.title}` : '' }} · {{ Math.round(slide.similarity * 100) }}%</p>
+            <p class="mt-1 text-muted-foreground">{{ slide.excerpt }}</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>

@@ -21,6 +21,7 @@ describe('findRelevantCaseStudies', () => {
         slideId: 'slide-1', caseStudyId: 'cs-1', caseStudyTitle: 'Bank cloud migration', caseStudyClient: 'Acme', caseStudyIndustry: 'Banking',
         slideIndex: 1, slideTitle: 'Results', slideContent: 'Cloud migration completed with banking availability.', similarity: 0.9,
       }]),
+      explain: vi.fn().mockResolvedValue([{ caseStudyId: 'cs-1', reason: 'Cloud migration evidence.', matchedRequirements: ['Cloud migration'], confidence: 0.82 }]),
     })
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({ relevanceScore: 0.9, selected: true, matchedSlideExcerpts: [expect.objectContaining({ slideIndex: 1, similarity: 0.9 })] })
@@ -31,6 +32,7 @@ describe('findRelevantCaseStudies', () => {
     const result = await findRelevantCaseStudies(analysis, caseStudies, {
       generateEmbedding: vi.fn().mockRejectedValue(new Error('offline')) as any,
       matchSlides: vi.fn(),
+      explain: vi.fn(),
     })
     expect(result[0]).toMatchObject({ caseStudyId: 'cs-1', selected: true })
     expect(result[0]?.matchedSlideExcerpts[0]?.excerpt).toContain('Cloud migration')
