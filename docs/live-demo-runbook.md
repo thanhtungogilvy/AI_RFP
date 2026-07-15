@@ -10,6 +10,16 @@
 
 Demo cards on empty list pages only explain the UI; they do not create an RFP analysis or support the recommendation endpoint.
 
+## Presenter recovery
+
+| Symptom | Explain / do |
+|---|---|
+| `RFP analysis not found` | You opened a UI-only demo RFP. Return to RFPs and use a real analyzed RFP. |
+| `AI explanation unavailable` | Start/load the LM Studio chat model, then refresh recommendations. |
+| No vector-like recommendation | Confirm the embedding model is loaded and slides have non-null embeddings; keyword fallback may still return matches. |
+| No recommendations | Select an RFP with requirements related to an indexed case study, or upload an appropriate deck. |
+| Proposal still processing/failed | Wait for completion; if failed, return to recommendations, confirm at least one selected case study, and generate again. |
+
 ## Prerequisites
 
 - Supabase migrations `001`, `002`, and `003` have been applied.

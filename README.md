@@ -126,6 +126,16 @@ Case-study uploads are indexed synchronously in the upload request. The server s
 | GET | `/api/proposals/[id]` | Get proposal metadata |
 | GET | `/api/proposals/[id]/download` | Download proposal PPTX |
 
+## Demo in five minutes
+
+1. Configure Supabase and LM Studio using [Operations](docs/operations.md).
+2. Upload a case-study PPTX and wait for **Indexed**.
+3. Upload a text-bearing RFP and click **Analyze RFP**.
+4. Review AI recommendations, their evidence slides, and confidence.
+5. Click **Generate Proposal**, then **Download PPTX**.
+
+Use [Live Demo Runbook](docs/live-demo-runbook.md) for presenter recovery steps.
+
 ## Demo Data
 
 Out of the box (no Supabase required):

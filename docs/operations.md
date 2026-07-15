@@ -54,3 +54,39 @@ select count(*) as embedded_slides
 from public.case_study_slides
 where embedding is not null;
 ```
+
+## Status reference
+
+| UI status | Persisted values | Meaning | Presenter action |
+|---|---|---|---|
+| Pending | `uploaded`, `pending` | File/request awaits work. | Start the next action. |
+| Processing | `processing`, `analyzing`, `generating` | Server or AI is working. | Wait; do not refresh the page. |
+| Indexed | `indexed` | PPTX slides were persisted; some embeddings can still be `NULL`. | Upload/analyze an RFP. |
+| Analyzed | `analyzed` | RFP analysis is stored and recommendations can be requested. | View recommendations. |
+| Generated | `completed`, `generated` | Proposal deck is ready. | Download PPTX. |
+| Failed | `error`, `failed` | Server-side operation did not finish. | Read error, correct configuration/input, retry. |
+
+## API behavior and recovery
+
+| Endpoint | Success | Important failure behavior |
+|---|---|---|
+| `POST /api/case-studies/upload` | Stores PPTX, extracts slides, writes embeddings, marks indexed. | Requires Supabase; invalid/text-free PPTX returns 400. Individual embedding failures leave the slide row with `NULL` embedding. |
+| `POST /api/rfps/[id]/analyze` | Stores strict RFP analysis. | LM Studio unavailable returns 503 and marks RFP error. |
+| `GET /api/rfps/[id]/recommendations` | Returns score, reason, requirements, excerpts, and confidence. | Embedding/vector failure uses keyword fallback. Explanation failure returns `503 AI explanation unavailable`. |
+| `POST /api/proposals/generate` | Produces a PPTX proposal. | Check proposal status/error message and retry after correcting inputs. |
+
+## Demo data policy
+
+The empty-list cards (`demo-cs-banking` and `demo-rfp-banking`) are presentation-only browser data. They deliberately do not create Supabase records, analyses, embeddings, or proposal files. Do not click the sample RFP's **View Recommendations** link during a live demo: it will return `404 RFP analysis not found` because the endpoint correctly reads persisted analysis only.
+
+For an end-to-end demo, use one real indexed case study plus one real analyzed RFP. A future guided-demo feature must add a local API-compatible analysis/recommendation/proposal dataset before sample cards can support the full flow.
+
+## Pre-demo checklist
+
+- [ ] Run all three migrations in order.
+- [ ] Confirm all three private Storage buckets exist.
+- [ ] Start LM Studio and load both configured models.
+- [ ] Run the `embedded_slides` query and confirm at least one non-null embedding.
+- [ ] Confirm a real RFP has status `analyzed`.
+- [ ] Open its recommendations page once; resolve any `503 AI explanation unavailable` before presenting.
+- [ ] Generate and download one proposal deck once to confirm the download path.
