@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-07-15] — Semantic Recommendations, AI Explanations & Demo Polish
+
+### Added
+- pgvector migration `003_case_study_slide_embeddings.sql` with 1024-dimensional BGE-M3 slide embeddings, HNSW cosine index, and similarity RPC.
+- LM Studio RFP analysis, semantic recommendations, matched slide excerpts, and keyword fallback.
+- Strict-JSON AI recommendation explanations with reasons, matched requirements, and confidence.
+- Demo-friendly empty-state sample cards, clearer CTAs, success confirmations, responsive recommendation layout, and normalized status labels.
+
+### Important behavior
+- A chat explanation failure returns `503 AI explanation unavailable`.
+- UI-only demo RFP cards are not persisted and cannot call the real recommendation endpoint; use real uploaded data for an end-to-end demo.
+
 ## [2026-07-14] — TypeScript Verification & Documentation
 
 ### ✅ Completed

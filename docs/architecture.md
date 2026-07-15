@@ -17,6 +17,16 @@ Upload Case Studies (PPTX)
   → Download
 ```
 
+### Current AI matching flow
+
+```
+Case-study PPTX → slide extraction → BGE-M3 embedding (1024 dimensions) → Supabase pgvector
+RFP text → LM Studio RFP analysis → query embedding → cosine slide search → grouped vector ranking
+→ LM Studio strict-JSON explanation → recommendation review → proposal deck
+```
+
+Vector ranking owns `relevanceScore`; the chat model only supplies a human-readable reason, matched requirements, and confidence. Vector/embedding failures use keyword fallback. Explanation failures return HTTP 503 so a demo does not silently present non-AI explanations as AI output.
+
 ---
 
 ## ✅ Completion Status (July 2026)
@@ -43,15 +53,15 @@ Upload Case Studies (PPTX)
 - ✅ File download with correct Content-Type headers
 - ⏳ **TODO**: Move files from local disk to Supabase Storage
 
-### Phase 3 — AI Analysis (Not Started)
-- ⏳ LM Studio integration (`server/services/ai/lmStudio.ts`)
-- ⏳ RFP analysis service (`server/services/rfp/analyzeRfp.ts`)
-- ⏳ System prompts and prompt engineering
+### Phase 3 — AI Analysis (Complete)
+- ✅ LM Studio chat and embedding integration
+- ✅ RFP analysis and strict JSON prompts
+- ✅ Recommendation explanation prompt and validation
 
-### Phase 4 — Vector Search (Not Started)
-- ⏳ pgvector extension in Supabase
-- ⏳ Case study slide embeddings
-- ⏳ Semantic similarity search for recommendations
+### Phase 4 — Vector Search (Complete)
+- ✅ pgvector extension, `vector(1024)` slide column, HNSW cosine index
+- ✅ BGE-M3 embeddings generated during slide indexing
+- ✅ `match_case_study_slides` RPC and keyword fallback
 
 ---
 

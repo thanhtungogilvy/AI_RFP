@@ -4,6 +4,13 @@ Nuxt 4 internal tool for presales teams to generate professional PPTX proposal d
 
 ## ✅ Hoàn thành
 
+### AI Matching & Explainability
+- ✅ LM Studio RFP analysis using `LMSTUDIO_CHAT_MODEL`
+- ✅ Per-slide BGE-M3 embeddings using `LMSTUDIO_EMBEDDING_MODEL=gpustack/bge-m3-GGUF`
+- ✅ Supabase pgvector cosine search over `case_study_slides.embedding` (`vector(1024)`)
+- ✅ AI-written recommendation reasons, matched requirements, confidence, and matched-slide excerpts
+- ✅ Deterministic keyword fallback when embedding/vector search fails
+
 ### Frontend & UI
 - ✅ Nuxt 4 app base with full page structure
 - ✅ TailwindCSS module for Nuxt (`@nuxtjs/tailwindcss`)
@@ -76,7 +83,10 @@ SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIs...
 ```
 
 ### 2. Run migrations
-In Supabase SQL editor, execute `supabase/migrations/001_initial_schema.sql`:
+In Supabase SQL editor, execute these migrations in order:
+- `supabase/migrations/001_initial_schema.sql`
+- `supabase/migrations/002_rfp_analysis.sql`
+- `supabase/migrations/003_case_study_slide_embeddings.sql`
 - Creates 4 tables: `case_studies`, `case_study_slides`, `rfp_documents`, `proposals`
 - Enables RLS on all tables (service role bypasses)
 - Sets up foreign keys, indexes, check constraints
@@ -107,7 +117,8 @@ Case-study uploads are indexed synchronously in the upload request. The server s
 | **RFPs** | | |
 | GET | `/api/rfps` | List all RFP documents |
 | POST | `/api/rfps/upload` | Upload RFP document |
-| POST | `/api/rfps/[id]/analyze` | Analyze RFP with AI (TODO) |
+| POST | `/api/rfps/[id]/analyze` | Analyze persisted RFP text with LM Studio |
+| GET | `/api/rfps/[id]/recommendations` | pgvector recommendations with AI explanations |
 | **Proposals** | | |
 | POST | `/api/proposals/generate` | Generate PPTX proposal deck |
 | GET | `/api/proposals/[id]` | Get proposal metadata |
@@ -118,4 +129,12 @@ Case-study uploads are indexed synchronously in the upload request. The server s
 Out of the box (no Supabase required):
 - **3 Case Studies**: Vietcombank, Masan Group, VinGroup
 - **2 RFPs**: ABC Bank, RetailCo Vietnam
-- **Mock recommendations** for proposal generation
+- Empty Case Study and RFP lists show UI-only demo cards to explain the flow.
+
+### Demo limitations
+
+UI demo RFP cards are not persisted in Supabase, so they cannot open the real recommendations endpoint. For a complete live demo, upload one real case study and one text-bearing RFP after configuring Supabase and LM Studio. A guided end-to-end local demo remains future work.
+
+## AI and Semantic Search
+
+Case-study upload extracts slide text, generates a 1024-dimensional embedding for each slide, and stores it in `case_study_slides.embedding`. Recommendation requests embed the RFP summary plus search keywords, call `match_case_study_slides`, group matching slides by case study, then ask the chat model to explain the selected results. If the embedding model or vector search fails, keyword matching is used. If the chat model cannot provide a valid explanation, the endpoint returns `503 AI explanation unavailable`.
