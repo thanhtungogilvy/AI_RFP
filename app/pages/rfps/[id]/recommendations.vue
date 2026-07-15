@@ -41,9 +41,9 @@ async function handleGenerate() {
 
     <div v-else-if="error" class="text-sm text-destructive">{{ error }}</div>
 
-    <div v-else class="grid grid-cols-5 gap-6">
+    <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-5">
       <!-- RFP Analysis Panel -->
-      <div class="col-span-2 space-y-4">
+      <div class="space-y-4 xl:col-span-2">
         <h2 class="text-sm font-semibold text-foreground">RFP Analysis</h2>
 
         <div v-if="analysis" class="rounded-lg border border-border bg-card p-4">
@@ -76,7 +76,7 @@ async function handleGenerate() {
       </div>
 
       <!-- Recommendations -->
-      <div class="col-span-3 space-y-4">
+      <div class="space-y-4 xl:col-span-3">
         <h2 class="text-sm font-semibold text-foreground">
           Recommended Case Studies
           <span class="ml-1 font-normal text-muted-foreground">({{ recommendations.length }} found)</span>

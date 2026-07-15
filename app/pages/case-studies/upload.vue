@@ -32,7 +32,7 @@ async function handleFile(file: File) {
 
     <div class="max-w-xl">
       <div v-if="uploadSuccess" class="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-        Presentation indexed successfully! Redirecting to the knowledge base...
+        <p class="font-medium">Case study indexed successfully.</p><NuxtLink to="/case-studies" class="mt-2 inline-block underline">Continue to Knowledge Base →</NuxtLink>
       </div>
 
       <div v-else>

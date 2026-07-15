@@ -44,7 +44,7 @@ async function handleSubmit() {
 
     <div class="max-w-xl space-y-6">
       <div v-if="uploadSuccess" class="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-        RFP uploaded! Redirecting to recommendations...
+        <p class="font-medium">RFP uploaded and analyzed successfully.</p><NuxtLink to="/rfps" class="mt-2 inline-block underline">Continue to RFPs →</NuxtLink>
       </div>
 
       <template v-else>
@@ -89,7 +89,7 @@ async function handleSubmit() {
         <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
 
         <Button :disabled="!canSubmit || loading" @click="handleSubmit">
-          {{ loading ? 'Uploading...' : 'Upload & Analyze RFP' }}
+          {{ loading ? 'Uploading & analyzing…' : 'Analyze RFP' }}
         </Button>
       </template>
     </div>

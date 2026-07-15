@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const { rfps, loading, fetchAll } = useRfps()
+import { demoRfps } from '~/utils/demoData'
+const displayRfps = computed(() => rfps.value.length ? rfps.value : demoRfps)
 
 onMounted(fetchAll)
 </script>
@@ -20,21 +22,11 @@ onMounted(fetchAll)
     </div>
 
     <!-- Empty -->
-    <EmptyState
-      v-else-if="!rfps.length"
-      title="No RFPs uploaded"
-      description="Upload an RFP document to generate AI-powered recommendations."
-    >
-      <template #action>
-        <NuxtLink to="/rfps/upload">
-          <Button size="sm">Upload RFP</Button>
-        </NuxtLink>
-      </template>
-    </EmptyState>
+    <div v-else-if="!rfps.length" class="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">Demo RFP shown. <NuxtLink class="font-medium underline" to="/rfps/upload">Upload RFP</NuxtLink> to start a real analysis.</div>
 
     <!-- Grid -->
-    <div v-else class="grid grid-cols-2 gap-4">
-      <RfpCard v-for="rfp in rfps" :key="rfp.id" :rfp="rfp" />
+    <div v-if="displayRfps.length" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <RfpCard v-for="rfp in displayRfps" :key="rfp.id" :rfp="rfp" />
     </div>
   </AppShell>
 </template>
