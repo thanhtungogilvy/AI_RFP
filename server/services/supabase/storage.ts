@@ -1,5 +1,21 @@
 import { getSupabaseClient } from './client'
 
+async function ensurePrivateBucket(bucket: string): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) throw new Error('Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.')
+
+  const { data, error } = await sb.storage.getBucket(bucket)
+  if (data) return
+  if (error && !/not found/i.test(error.message)) {
+    throw new Error(`Failed to check storage bucket ${bucket}: ${error.message}`)
+  }
+
+  const { error: createError } = await sb.storage.createBucket(bucket, { public: false })
+  if (createError && !/already exists|duplicate/i.test(createError.message)) {
+    throw new Error(`Failed to create storage bucket ${bucket}: ${createError.message}`)
+  }
+}
+
 /**
  * Upload a file buffer to a Supabase Storage bucket.
  * Returns the storage object path (not a public URL — use getSignedUrl for downloads).
@@ -12,6 +28,8 @@ export async function uploadFile(
 ): Promise<string> {
   const sb = getSupabaseClient()
   if (!sb) throw new Error('Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.')
+
+  await ensurePrivateBucket(bucket)
 
   const { error } = await sb.storage
     .from(bucket)
@@ -53,4 +71,3 @@ export async function downloadFile(bucket: string, path: string): Promise<Buffer
   const arrayBuffer = await data.arrayBuffer()
   return Buffer.from(arrayBuffer)
 }
-

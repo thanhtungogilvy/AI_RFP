@@ -14,6 +14,7 @@ export interface ProposalDeckData {
 // ─── Design tokens ───────────────────────────────────────────────────────────
 const W = 10      // slide width  (inches, 16:9 widescreen)
 const H = 5.625   // slide height (inches)
+const ShapeType = { rect: 'rect', ellipse: 'ellipse', line: 'line' } as const
 
 const C = {
   primary:      '1E293B', // slate-800
@@ -33,12 +34,12 @@ const C = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function header(slide: pptxgen.Slide, title: string) {
-  slide.addShape(pptxgen.ShapeType.rect, {
+  slide.addShape(ShapeType.rect, {
     x: 0, y: 0, w: W, h: 0.6,
     fill: { color: C.primary },
     line: { color: C.primary, width: 0 },
   })
-  slide.addShape(pptxgen.ShapeType.rect, {
+  slide.addShape(ShapeType.rect, {
     x: 0, y: 0, w: 0.06, h: 0.6,
     fill: { color: C.accent },
     line: { color: C.accent, width: 0 },
@@ -54,7 +55,7 @@ function header(slide: pptxgen.Slide, title: string) {
 }
 
 function footer(slide: pptxgen.Slide, label = 'Confidential · AI RFP Generator') {
-  slide.addShape(pptxgen.ShapeType.rect, {
+  slide.addShape(ShapeType.rect, {
     x: 0, y: H - 0.28, w: W, h: 0.28,
     fill: { color: C.border },
     line: { color: C.border, width: 0 },
@@ -90,14 +91,14 @@ function addCoverSlide(prs: pptxgen, data: ProposalDeckData) {
   slide.background = { color: C.primary }
 
   // Left accent bar
-  slide.addShape(pptxgen.ShapeType.rect, {
+  slide.addShape(ShapeType.rect, {
     x: 0, y: 0, w: 0.12, h: H,
     fill: { color: C.accent },
     line: { color: C.accent, width: 0 },
   })
 
   // Decorative circle
-  slide.addShape(pptxgen.ShapeType.ellipse, {
+  slide.addShape(ShapeType.ellipse, {
     x: 7, y: -1.5, w: 5, h: 5,
     fill: { color: '243447' },
     line: { color: '243447', width: 0 },
@@ -182,7 +183,7 @@ function addExecutiveSummarySlide(prs: pptxgen, data: ProposalDeckData) {
     const bx = 0.4 + i * (bw + 0.15)
     const by = 2.5
 
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: bx, y: by, w: bw, h: 1.95,
       fill: { color: C.offWhite },
       line: { color: C.border, width: 0.75 },
@@ -243,7 +244,7 @@ function addRfpRequirementsSlide(prs: pptxgen, data: ProposalDeckData) {
     const isEven = i % 2 === 0
 
     if (isEven) {
-      slide.addShape(pptxgen.ShapeType.rect, {
+      slide.addShape(ShapeType.rect, {
         x: 0.3, y: ry, w: W - 0.6, h: rowH,
         fill: { color: C.offWhite },
         line: { color: C.offWhite, width: 0 },
@@ -251,7 +252,7 @@ function addRfpRequirementsSlide(prs: pptxgen, data: ProposalDeckData) {
     }
 
     // Priority pill
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: 0.35, y: ry + 0.1, w: 0.72, h: 0.24,
       fill: { color: req.priority === 'high' ? 'FEE2E2' : req.priority === 'medium' ? 'FEF3C7' : 'F3F4F6' },
       line: { color: req.priority === 'high' ? 'FEE2E2' : req.priority === 'medium' ? 'FEF3C7' : 'F3F4F6', width: 0 },
@@ -326,7 +327,7 @@ function addProposedApproachSlide(prs: pptxgen) {
     const px = 0.3 + i * (pw + 0.1)
 
     // Card
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: px, y: py, w: pw, h: 4.55,
       fill: { color: i === 0 ? C.primary : C.offWhite },
       line: { color: i === 0 ? C.primary : C.border, width: 0.75 },
@@ -358,7 +359,7 @@ function addProposedApproachSlide(prs: pptxgen) {
     })
 
     // Divider
-    slide.addShape(pptxgen.ShapeType.line, {
+    slide.addShape(ShapeType.line, {
       x: px + 0.12, y: py + 1.55, w: pw - 0.24, h: 0,
       line: { color: i === 0 ? '334155' : C.border, width: 0.5 },
     })
@@ -392,7 +393,7 @@ function addCaseStudiesIntroSlide(prs: pptxgen, caseStudies: CaseStudy[]) {
   caseStudies.forEach((cs, i) => {
     const ry = 1.4 + i * 0.8
 
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: 0.4, y: ry, w: W - 0.8, h: 0.68,
       fill: { color: C.white },
       line: { color: C.border, width: 0.75 },
@@ -400,7 +401,7 @@ function addCaseStudiesIntroSlide(prs: pptxgen, caseStudies: CaseStudy[]) {
     })
 
     // Index
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: 0.4, y: ry, w: 0.55, h: 0.68,
       fill: { color: C.accent },
       line: { color: C.accent, width: 0 },
@@ -432,7 +433,7 @@ function addCaseStudiesIntroSlide(prs: pptxgen, caseStudies: CaseStudy[]) {
 
     // Tags
     cs.tags.slice(0, 4).forEach((tag, ti) => {
-      slide.addShape(pptxgen.ShapeType.rect, {
+      slide.addShape(ShapeType.rect, {
         x: W - 0.6 - ti * 1.15, y: ry + 0.2, w: 1.05, h: 0.22,
         fill: { color: C.accentLight },
         line: { color: C.accentLight, width: 0 },
@@ -465,7 +466,7 @@ function addCaseStudySlide(prs: pptxgen, cs: CaseStudy, index: number) {
   })
 
   // Meta pills
-  slide.addShape(pptxgen.ShapeType.rect, {
+  slide.addShape(ShapeType.rect, {
     x: 0.4, y: 1.28, w: 1.6, h: 0.26,
     fill: { color: C.accentLight },
     line: { color: C.accentLight, width: 0 },
@@ -511,7 +512,7 @@ function addCaseStudySlide(prs: pptxgen, cs: CaseStudy, index: number) {
     const cy = 2.38
 
     // Label bar
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: cx, y: cy, w: cw, h: 0.32,
       fill: { color: col.color },
       line: { color: col.color, width: 0 },
@@ -528,7 +529,7 @@ function addCaseStudySlide(prs: pptxgen, cs: CaseStudy, index: number) {
     })
 
     // Content box
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: cx, y: cy + 0.32, w: cw, h: 2.65,
       fill: { color: C.offWhite },
       line: { color: C.border, width: 0.5 },
@@ -551,7 +552,7 @@ function addNextStepsSlide(prs: pptxgen, data: ProposalDeckData) {
   footer(slide)
 
   // Accent bar top
-  slide.addShape(pptxgen.ShapeType.rect, {
+  slide.addShape(ShapeType.rect, {
     x: 0, y: 0, w: W, h: 0.08,
     fill: { color: C.accent },
     line: { color: C.accent, width: 0 },
@@ -580,7 +581,7 @@ function addNextStepsSlide(prs: pptxgen, data: ProposalDeckData) {
   ]
 
   steps.forEach((step, i) => {
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: 0.5, y: 2.45 + i * 0.62, w: 0.32, h: 0.32,
       fill: { color: C.accent },
       line: { color: C.accent, width: 0 },
@@ -604,7 +605,7 @@ function addNextStepsSlide(prs: pptxgen, data: ProposalDeckData) {
 
   // Right panel: deadline if present
   if (data.rfp.deadline) {
-    slide.addShape(pptxgen.ShapeType.rect, {
+    slide.addShape(ShapeType.rect, {
       x: 7, y: 1.9, w: 2.7, h: 1.7,
       fill: { color: '243447' },
       line: { color: '334155', width: 0.5 },
