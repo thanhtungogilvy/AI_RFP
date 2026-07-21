@@ -45,10 +45,14 @@ To backfill existing slide vectors without re-uploading decks, load the required
 ## Verification
 
 ```bash
+npm run lint
 npm test
 npm run typecheck
 npm run build
+npm run test:e2e
 ```
+
+The build may still print sourcemap/PURE-annotation warnings originating in Nuxt/VueUse dependencies. First-party source must not add build warnings.
 
 After uploading a PPTX, verify embeddings:
 
@@ -77,6 +81,8 @@ where embedding is not null;
 | `POST /api/rfps/[id]/analyze` | Stores strict RFP analysis. | LM Studio unavailable returns 503 and marks RFP error. |
 | `GET /api/rfps/[id]/recommendations` | Returns score, reason, requirements, excerpts, and confidence. | Embedding/vector failure uses keyword fallback; failed explanations are visibly labelled fallback evidence. |
 | `POST /api/proposals/generate` | Produces a durable PPTX proposal; optionally PDF. | Requires an analyzed RFP and at least one indexed case study. |
+
+All API errors include a stable `data.code`, a correlated `data.requestId`, and the `X-Request-ID` header. Local structured JSON logs contain the request ID, route, operation/dependency when applicable, and status; credentials and file contents are redacted. Use the request ID to correlate a UI failure with the local server log. Dependency failures report an actionable 503 message and never expose a raw Supabase or model error.
 
 ## Demo data policy
 

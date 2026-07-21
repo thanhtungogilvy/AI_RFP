@@ -26,7 +26,7 @@ Nuxt 4 internal tool for presales teams to generate professional PPTX proposal d
 - ✅ Supabase integration: client, storage, typed queries
 - ✅ Complete API routes: case-studies, rfps, proposals (upload, list, generate, download)
 - ✅ Multipart form file upload parsing
-- ✅ Mock fallback pattern for all data layers
+- ✅ Production routes fail safely when a required dependency is unavailable; no fabricated records
 
 ### Database & Infrastructure
 - ✅ Supabase PostgreSQL schema (4 tables with RLS, FKs, indexes)
@@ -36,7 +36,7 @@ Nuxt 4 internal tool for presales teams to generate professional PPTX proposal d
 
 ### Development & Tooling
 - ✅ TypeScript 5.9.3 with vue-tsc 2.1.6 (0 errors)
-- ✅ Environment configuration with runtimeConfig (secrets never exposed to client)
+- ✅ Central server-only environment module (secrets never exposed to client)
 - ✅ .env.example with all required variables
 - ✅ All imports fixed (relative paths for server/, ~ alias for app/)
 - ✅ Vue SFC compiler compatibility fixes (@vue-ignore on PrimitiveProps)
@@ -44,7 +44,7 @@ Nuxt 4 internal tool for presales teams to generate professional PPTX proposal d
 
 ## Cấu hình chính
 
-- **Nuxt**: `nuxt.config.ts` with `runtimeConfig` for secrets
+- **Nuxt**: `nuxt.config.ts` plus `server/utils/environment.ts` for server-only configuration
 - **Tailwind**: `tailwind.config.ts` (TypeScript) + `app/assets/css/tailwind.css`
 - **shadcn-vue**: `components.json` with `pathPrefix: false`
 - **Database**: `supabase/migrations/001_initial_schema.sql`
@@ -105,7 +105,7 @@ In Supabase Storage, create 3 **private** buckets (public access must remain dis
 npm run dev
 ```
 
-Production data requires Supabase. Listing, upload, analysis, and proposal routes return a clear configuration error rather than fabricated mock records when it is unavailable.
+Production data requires Supabase and the configured LM Studio model for analysis. Listing, upload, analysis, and proposal routes return a clear configuration error rather than fabricated mock records when a required dependency is unavailable.
 
 Case-study uploads are indexed synchronously in the upload request. The server stores the original PPTX in the `case-studies` bucket, extracts text from its slide XML with JSZip and fast-xml-parser, writes one-based slide rows to `case_study_slides`, and returns only after the case study reaches `indexed`. Invalid, malformed, or text-free decks are rejected; processing failures mark the case study as `error`.
 

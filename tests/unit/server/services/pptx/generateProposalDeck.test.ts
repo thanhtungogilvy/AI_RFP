@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateProposalDeck } from './generateProposalDeck'
+import { generateProposalDeck } from '#server/services/pptx/generateProposalDeck'
 
 describe('generateProposalDeck', () => {
   it('generates a valid PPTX buffer without relying on static shape exports', async () => {

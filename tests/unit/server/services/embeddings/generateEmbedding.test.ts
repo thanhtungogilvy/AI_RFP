@@ -4,7 +4,7 @@ import {
   EMBEDDING_DIMENSIONS,
   generateEmbedding,
   generateSlideEmbedding,
-} from './generateEmbedding'
+} from '#server/services/embeddings/generateEmbedding'
 
 const vector = () => Array.from({ length: EMBEDDING_DIMENSIONS }, (_, index) => index / EMBEDDING_DIMENSIONS)
 

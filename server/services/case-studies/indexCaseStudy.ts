@@ -9,6 +9,7 @@ import {
 import { uploadFile } from '../supabase/storage'
 import { extractSlidesFromPptx } from '../pptx/extractSlides'
 import { generateSlideEmbedding } from '../embeddings/generateEmbedding'
+import { logError } from '../../utils/logger'
 
 export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const MAX_STORAGE_FILE_NAME_LENGTH = 180
@@ -93,7 +94,7 @@ export async function indexCaseStudy(
       try {
         embedding = await deps.generateSlideEmbedding({ title: slide.title, content: slide.content })
       } catch (error) {
-        console.error(`Failed to embed case study slide ${slide.slideNumber}`, error)
+        logError('case_study_embedding_failed', error, { caseStudyId: saved.id, slideIndex: slide.slideNumber })
       }
       return { slideIndex: slide.slideNumber, title: slide.title, content: slide.content, embedding }
     })
@@ -108,7 +109,7 @@ export async function indexCaseStudy(
     try {
       await deps.updateStatus(saved.id, 'error')
     } catch (statusError) {
-      console.error('Failed to mark case study indexing as error', statusError)
+      logError('case_study_status_update_failed', statusError, { caseStudyId: saved.id })
     }
     throw error
   }

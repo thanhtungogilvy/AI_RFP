@@ -1,3 +1,4 @@
+import type { H3Event } from 'h3'
 import type { RfpDocument } from '~/types/rfp'
 import { dbInsertRfp, dbUpdateRfpFilePath } from '../../services/supabase/db'
 import { uploadFile } from '../../services/supabase/storage'
@@ -47,7 +48,7 @@ const defaultDependencies: UploadDependencies = {
   },
 }
 
-export async function handleRfpUpload(event: any, deps: UploadDependencies = defaultDependencies) {
+export async function handleRfpUpload(event: H3Event, deps: UploadDependencies = defaultDependencies) {
   const parts = await deps.readMultipartFormData(event)
   if (!parts?.length) throw createError({ statusCode: 400, statusMessage: 'No file provided' })
 

@@ -1,7 +1,6 @@
 import pptxgen from 'pptxgenjs'
 import type { CaseStudy } from '~/types/case-study'
-import type { RfpDocument } from '~/types/rfp'
-import type { RfpAnalysis } from '~/types/rfp'
+import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
 
 export interface ProposalDeckData {
   rfp: RfpDocument

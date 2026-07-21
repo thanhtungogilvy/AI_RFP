@@ -13,6 +13,10 @@ const debouncedSearch = useDebounceFn(async () => {
 watch(query, debouncedSearch)
 
 onMounted(fetchAll)
+
+function retry() {
+  return query.value.trim() ? search(query.value) : fetchAll()
+}
 </script>
 
 <template>
@@ -41,8 +45,14 @@ onMounted(fetchAll)
     </div>
 
     <!-- Empty -->
-    <div v-else-if="error" class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{{ error }}</div>
-    <EmptyState v-else-if="!caseStudies.length" title="Knowledge Base is empty" description="Upload a PPTX case study to start building the indexed library." />
+    <div v-else-if="error" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+      <span>{{ error }}</span><Button size="sm" variant="outline" @click="retry">Retry</Button>
+    </div>
+    <EmptyState
+      v-else-if="!caseStudies.length"
+      :title="query.trim() ? 'No search results' : 'Knowledge Base is empty'"
+      :description="query.trim() ? 'Try a different keyword, client, industry, or slide phrase.' : 'Upload a PPTX case study to start building the indexed library.'"
+    />
 
     <!-- Grid -->
     <div v-if="caseStudies.length" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

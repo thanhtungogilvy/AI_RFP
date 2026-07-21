@@ -2,24 +2,20 @@ import type { RfpDocument } from '~/types/rfp'
 
 export const useRfps = () => {
   const rfps = ref<RfpDocument[]>([])
-  const loading = ref(false)
   const error = ref<string | null>(null)
+  const actionState = createActionState(['fetching', 'uploading', 'analyzing'] as const)
 
-  const fetchAll = async () => {
-    loading.value = true
+  const fetchAll = () => actionState.run('fetching', async () => {
     error.value = null
     try {
       const data = await $fetch<RfpDocument[]>('/api/rfps')
       rfps.value = data
-    } catch (e: any) {
-      error.value = e.message ?? 'Failed to fetch RFPs'
-    } finally {
-      loading.value = false
+    } catch (caught: unknown) {
+      error.value = caught instanceof Error ? caught.message : 'Failed to fetch RFPs'
     }
-  }
+  })
 
-  const upload = async (file: File, meta: { title: string; client: string; industry: string }) => {
-    loading.value = true
+  const upload = (file: File, meta: { title: string; client: string; industry: string }) => actionState.run('uploading', async () => {
     error.value = null
     try {
       const formData = new FormData()
@@ -33,26 +29,27 @@ export const useRfps = () => {
       })
       rfps.value.unshift(data)
       return data
-    } catch (e: any) {
-      error.value = e.message ?? 'Failed to upload RFP'
-      throw e
-    } finally {
-      loading.value = false
+    } catch (caught: unknown) {
+      error.value = caught instanceof Error ? caught.message : 'Failed to upload RFP'
+      throw caught
     }
-  }
+  })
 
-  const analyze = async (rfpId: string) => {
-    loading.value = true
+  const analyze = (rfpId: string) => actionState.run('analyzing', async () => {
     error.value = null
     try {
       await $fetch(`/api/rfps/${rfpId}/analyze`, { method: 'POST' })
-    } catch (e: any) {
-      error.value = e.message ?? 'Failed to analyze RFP'
-      throw e
-    } finally {
-      loading.value = false
+    } catch (caught: unknown) {
+      error.value = caught instanceof Error ? caught.message : 'Failed to analyze RFP'
+      throw caught
     }
-  }
+  })
 
-  return { rfps, loading, error, fetchAll, upload, analyze }
+  return {
+    rfps, error, fetchAll, upload, analyze,
+    loading: actionState.loading,
+    fetching: actionState.isActive('fetching'),
+    uploading: actionState.isActive('uploading'),
+    analyzing: actionState.isActive('analyzing'),
+  }
 }

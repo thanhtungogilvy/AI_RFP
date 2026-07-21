@@ -4,6 +4,7 @@ import type { CaseStudy } from '~/types/case-study'
 import { buildRecommendationQuery, generateEmbedding } from '../embeddings/generateEmbedding'
 import { dbMatchCaseStudySlides, type VectorSlideMatch } from '../supabase/db'
 import { explainRecommendations } from './explainRecommendations'
+import { logError } from '../../utils/logger'
 
 const MAX_RESULTS = 5
 const MAX_SLIDES = 3
@@ -99,7 +100,7 @@ export async function findRelevantCaseStudies(
         .sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, MAX_RESULTS).map((item, index) => ({ ...item, selected: index === 0 }))
     }
   } catch (error) {
-    console.error('Semantic case-study recommendation failed; using keyword fallback', error)
+    logError('recommendation_vector_fallback', error, { rfpId: analysis.rfpId, dependency: 'vector_search' })
     ranked = keywordRecommendations(analysis, caseStudies)
   }
 
@@ -116,7 +117,7 @@ export async function findRelevantCaseStudies(
       explanationWarning: undefined,
     }))
   } catch (error) {
-    console.error('AI recommendation explanation failed; using deterministic explanation', error)
+    logError('recommendation_explanation_fallback', error, { rfpId: analysis.rfpId, dependency: 'lm_studio' })
     return ranked.map(item => ({ ...item, explanationSource: 'fallback' as const, explanationWarning: 'AI explanation unavailable' }))
   }
 }

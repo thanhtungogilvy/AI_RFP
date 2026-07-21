@@ -1,9 +1,13 @@
 <script setup lang="ts">
-const stats = [
-  { label: 'Case Studies Indexed', value: '3', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-  { label: 'RFPs Uploaded', value: '2', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-  { label: 'Proposals Generated', value: '1', icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-]
+const { stats, error, fetch, fetching } = useDashboardStats()
+
+const statCards = computed(() => [
+  { label: 'Case Studies Indexed', value: stats.value.caseStudiesIndexed, icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
+  { label: 'RFPs Uploaded', value: stats.value.rfpsUploaded, icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { label: 'Proposals Generated', value: stats.value.proposalsGenerated, icon: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+])
+
+onMounted(fetch)
 
 const quickActions = [
   { label: 'Upload Case Study', to: '/case-studies/upload', description: 'Add PPTX files to the knowledge base' },
@@ -20,10 +24,14 @@ const quickActions = [
       description="Overview of your AI-powered proposal generator."
     />
 
+    <p v-if="error" class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+      {{ error }}
+    </p>
+
     <!-- Stats -->
     <div class="mb-8 grid grid-cols-3 gap-4">
       <div
-        v-for="stat in stats"
+        v-for="stat in statCards"
         :key="stat.label"
         class="flex items-center gap-4 rounded-lg border border-border bg-card p-4"
       >
@@ -33,7 +41,7 @@ const quickActions = [
           </svg>
         </div>
         <div>
-          <p class="text-2xl font-bold text-foreground">{{ stat.value }}</p>
+          <p class="text-2xl font-bold text-foreground">{{ fetching ? '...' : stat.value }}</p>
           <p class="text-xs text-muted-foreground">{{ stat.label }}</p>
         </div>
       </div>

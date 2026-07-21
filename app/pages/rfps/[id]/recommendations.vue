@@ -52,7 +52,9 @@ async function handleGenerate() {
       <div v-for="i in 3" :key="i" class="h-32 animate-pulse rounded-lg bg-muted" />
     </div>
 
-    <div v-else-if="error" class="text-sm text-destructive">{{ error }}</div>
+    <div v-else-if="error" class="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+      <span>{{ error }}</span><Button size="sm" variant="outline" @click="fetch">Retry recommendations</Button>
+    </div>
 
     <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-5">
       <!-- RFP Analysis Panel -->

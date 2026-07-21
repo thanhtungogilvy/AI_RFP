@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import pptxgen from 'pptxgenjs'
 import { describe, expect, it, vi } from 'vitest'
-import { expandControlXml, extractSlidesFromPptx, validateSlideResourceLimits } from './extractSlides'
+import { expandControlXml, extractSlidesFromPptx, validateSlideResourceLimits } from '#server/services/pptx/extractSlides'
 
 function addPresentation(zip: JSZip, slideTargets: string[]) {
   zip.file('ppt/presentation.xml', `<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst>${slideTargets.map((_, index) => `<p:sldId id="${256 + index}" r:id="rId${index + 1}"/>`).join('')}</p:sldIdLst></p:presentation>`)

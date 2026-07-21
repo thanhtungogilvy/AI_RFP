@@ -12,7 +12,7 @@ beforeAll(async () => {
   )
   vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
   vi.stubGlobal('readMultipartFormData', vi.fn())
-  ;({ validatePptxUpload, handleCaseStudyUpload, readBoundedMultipartFormData } = await import('./upload.post'))
+  ;({ validatePptxUpload, handleCaseStudyUpload, readBoundedMultipartFormData } = await import('#server/api/case-studies/upload.post'))
 })
 
 describe('readBoundedMultipartFormData', () => {

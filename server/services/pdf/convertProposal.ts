@@ -4,13 +4,15 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { getServerEnvironment } from '../../utils/environment'
 
 const execFile = promisify(execFileCallback)
 const PDF_TIMEOUT_MS = 120_000
 
 export function getPdfConverterPath(): string | null {
-  if (process.env.PDF_CONVERTER !== 'libreoffice') return null
-  return process.env.PDF_CONVERTER_PATH || 'soffice'
+  const { pdfConverter, pdfConverterPath } = getServerEnvironment()
+  if (pdfConverter !== 'libreoffice') return null
+  return pdfConverterPath || 'soffice'
 }
 
 export function canExportPdf(): boolean {

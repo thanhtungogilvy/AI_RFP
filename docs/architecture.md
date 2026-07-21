@@ -27,7 +27,7 @@ RFP text → LM Studio RFP analysis → query embedding → cosine slide search 
 → LM Studio strict-JSON explanation → recommendation review → proposal deck
 ```
 
-Vector ranking owns `relevanceScore`; the chat model only supplies a human-readable reason, matched requirements, and confidence. Vector/embedding failures use keyword fallback. Explanation failures return HTTP 503 so a demo does not silently present non-AI explanations as AI output.
+Vector ranking owns `relevanceScore`; the chat model only supplies a human-readable reason, matched requirements, and confidence. Vector/embedding failures use keyword fallback. Explanation failures retain deterministic evidence and are visibly labelled as a fallback.
 
 ---
 
@@ -37,7 +37,7 @@ Vector ranking owns `relevanceScore`; the chat model only supplies a human-reada
 - ✅ Nuxt 4 full-stack setup with all UI components
 - ✅ All 5 pages: Dashboard, Case Studies, RFPs, Proposals, Recommendations
 - ✅ TypeScript 5.9.3 with vue-tsc integration — **0 errors**
-- ✅ Environment configuration with `runtimeConfig` (secrets never exposed to client)
+- ✅ Central server-only environment module using `LMSTUDIO_*` names (secrets never exposed to client)
 
 ### Phase 1 — Storage & Database (100% Complete)
 - ✅ Supabase schema: 4 tables with RLS, foreign keys, indexes
@@ -46,7 +46,7 @@ Vector ranking owns `relevanceScore`; the chat model only supplies a human-reada
 - ✅ Complete DB query layer: 15+ typed helpers for all CRUD operations
 - ✅ All API routes updated: case-studies, rfps, proposals
 - ✅ Multipart form parsing for file uploads
-- ✅ Mock fallback on listing routes; case-study indexing explicitly requires Supabase
+- ✅ Production routes return an actionable dependency error when Supabase is unavailable; no fabricated records
 - ✅ Synchronous case-study indexing: store PPTX, extract slide text with JSZip + fast-xml-parser, persist one-based slide rows, then mark `indexed`
 
 ### Phase 2 — PPTX Generation (100% Complete)
@@ -339,15 +339,15 @@ To exercise the full live flow, configure Supabase and LM Studio, upload a real 
 - [x] Implement `server/services/supabase/storage.ts` (`uploadFile`, `getSignedUrl`, `downloadFile`)
 - [x] Implement `server/services/supabase/db.ts` with 15+ typed query helpers
 - [x] Parse real multipart uploads in `upload.post.ts` routes
-- [x] All API routes updated for Supabase with mock fallback
+- [x] All API routes updated for Supabase with safe dependency errors
 - [ ] Integrate a PPTX parser in `server/services/pptx/extractSlides.ts`
 - [ ] Queue slide extraction job (background/queue service)
 
 ### Phase 2 — AI Analysis
-- [ ] Start LM Studio with a capable model, set `LM_STUDIO_BASE_URL` env var
-- [ ] Implement `server/services/rfp/analyzeRfp.ts` using `lmStudio.ts` + prompts
-- [ ] Wire `/api/rfps/[id]/analyze` to call the real service
-- [ ] Store `RfpAnalysis` in Supabase DB
+- [x] Start LM Studio with configured `LMSTUDIO_BASE_URL` and models
+- [x] Implement `server/services/rfp/analyzeRfp.ts` using `lmStudio.ts` + prompts
+- [x] Wire `/api/rfps/[id]/analyze` to call the real service
+- [x] Store `RfpAnalysis` in Supabase DB
 
 ### Phase 3 — Vector Search & Recommendations
 - [x] Enable pgvector through migration `003_case_study_slide_embeddings.sql`

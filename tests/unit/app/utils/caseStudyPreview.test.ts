@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CaseStudy } from '~/types/case-study'
-import { getCaseStudyPreview } from './caseStudyPreview'
+import { getCaseStudyPreview } from '~/utils/caseStudyPreview'
 
 const base = {
   id: 'cs-1',

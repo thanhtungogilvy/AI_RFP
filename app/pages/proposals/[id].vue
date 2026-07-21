@@ -20,7 +20,9 @@ onMounted(() => fetchProposal(proposalId))
     <div class="max-w-xl">
       <div v-if="loading" class="h-40 animate-pulse rounded-lg bg-muted" />
 
-      <div v-else-if="error" class="text-sm text-destructive">{{ error }}</div>
+      <div v-else-if="error" class="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        <span>{{ error }}</span><Button size="sm" variant="outline" @click="fetchProposal(proposalId)">Retry</Button>
+      </div>
 
       <template v-else-if="proposal">
         <ProposalDownloadCard :proposal="proposal" />
@@ -35,6 +37,7 @@ onMounted(() => fetchProposal(proposalId))
 
         <div v-if="proposal.errorMessage" class="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {{ proposal.errorMessage }}
+          <NuxtLink :to="`/rfps/${proposal.rfpId}/recommendations`" class="mt-2 block underline">Back to recommendations to retry</NuxtLink>
         </div>
       </template>
 

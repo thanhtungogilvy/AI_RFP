@@ -14,6 +14,7 @@ import {
 } from '../supabase/db'
 import { uploadFile } from '../supabase/storage'
 import { canExportPdf, convertPptxToPdf } from '../pdf/convertProposal'
+import { AppError, asAppError } from '../../utils/errors'
 
 export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 
@@ -114,7 +115,7 @@ export async function generateProposal(
         pdfStatus = 'completed'
       } catch (error) {
         pdfStatus = 'error'
-        pdfErrorMessage = error instanceof Error ? error.message : 'PDF conversion failed'
+        pdfErrorMessage = error instanceof AppError ? error.publicMessage : 'PDF conversion failed'
       }
     }
     const completed: ProposalGeneration = {
@@ -132,7 +133,7 @@ export async function generateProposal(
     })
     return completed
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Proposal generation failed'
+    const errorMessage = asAppError(error).publicMessage
     await deps.updateProposal(proposalId, { status: 'error', errorMessage }).catch(() => undefined)
     throw error
   }

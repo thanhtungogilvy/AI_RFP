@@ -5,7 +5,7 @@ let handleRfpUpload: (event: any, deps: any) => Promise<unknown>
 beforeAll(async () => {
   vi.stubGlobal('createError', (input: { statusCode: number, statusMessage: string }) => Object.assign(new Error(input.statusMessage), input))
   vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
-  ;({ handleRfpUpload } = await import('./upload.post'))
+  ;({ handleRfpUpload } = await import('#server/api/rfps/upload.post'))
 })
 
 const pdf = { name: 'file', filename: 'rfp.pdf', type: 'application/pdf', data: Buffer.from('%PDF-1.7\nRFP text') }

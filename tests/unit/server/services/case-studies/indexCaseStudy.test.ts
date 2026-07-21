@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CaseStudy } from '~/types/case-study'
-import { indexCaseStudy, PPTX_MIME } from './indexCaseStudy'
+import { indexCaseStudy, PPTX_MIME } from '#server/services/case-studies/indexCaseStudy'
 
 const input = {
   buffer: Buffer.from('pptx'),

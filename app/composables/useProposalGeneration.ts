@@ -2,11 +2,10 @@ import type { ProposalGeneration } from '~/types/proposal'
 
 export const useProposalGeneration = () => {
   const proposal = ref<ProposalGeneration | null>(null)
-  const loading = ref(false)
   const error = ref<string | null>(null)
+  const actionState = createActionState(['fetching', 'generating'] as const)
 
-  const generate = async (rfpId: string, selectedCaseStudyIds: string[], includePdf = false) => {
-    loading.value = true
+  const generate = (rfpId: string, selectedCaseStudyIds: string[], includePdf = false) => actionState.run('generating', async () => {
     error.value = null
     try {
       const data = await $fetch<ProposalGeneration>('/api/proposals/generate', {
@@ -15,27 +14,27 @@ export const useProposalGeneration = () => {
       })
       proposal.value = data
       return data
-    } catch (e: any) {
-      error.value = e.message ?? 'Failed to generate proposal'
-      throw e
-    } finally {
-      loading.value = false
+    } catch (caught: unknown) {
+      error.value = caught instanceof Error ? caught.message : 'Failed to generate proposal'
+      throw caught
     }
-  }
+  })
 
-  const fetchProposal = async (proposalId: string) => {
-    loading.value = true
+  const fetchProposal = (proposalId: string) => actionState.run('fetching', async () => {
     error.value = null
     try {
       const data = await $fetch<ProposalGeneration>(`/api/proposals/${proposalId}`)
       proposal.value = data
       return data
-    } catch (e: any) {
-      error.value = e.message ?? 'Failed to fetch proposal'
-    } finally {
-      loading.value = false
+    } catch (caught: unknown) {
+      error.value = caught instanceof Error ? caught.message : 'Failed to fetch proposal'
     }
-  }
+  })
 
-  return { proposal, loading, error, generate, fetchProposal }
+  return {
+    proposal, error, generate, fetchProposal,
+    loading: actionState.loading,
+    fetching: actionState.isActive('fetching'),
+    generating: actionState.isActive('generating'),
+  }
 }

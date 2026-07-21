@@ -29,7 +29,9 @@ onMounted(fetchAll)
     </div>
 
     <!-- Empty -->
-    <div v-else-if="error" class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{{ error }}</div>
+    <div v-else-if="error" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+      <span>{{ error }}</span><Button size="sm" variant="outline" @click="fetchAll">Retry</Button>
+    </div>
     <EmptyState v-else-if="!rfps.length" title="No RFP documents" description="Upload a PDF or DOCX RFP to start analysis." />
 
     <!-- Grid -->

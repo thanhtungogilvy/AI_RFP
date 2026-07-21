@@ -4,11 +4,10 @@ import type { RfpAnalysis } from '~/types/rfp'
 export const useRecommendations = (rfpId: string) => {
   const recommendations = ref<CaseStudyRecommendation[]>([])
   const analysis = ref<RfpAnalysis | null>(null)
-  const loading = ref(false)
   const error = ref<string | null>(null)
+  const actionState = createActionState(['fetching'] as const)
 
-  const fetch = async () => {
-    loading.value = true
+  const fetch = () => actionState.run('fetching', async () => {
     error.value = null
     try {
       const data = await $fetch<{ analysis: RfpAnalysis; recommendations: CaseStudyRecommendation[] }>(
@@ -16,12 +15,10 @@ export const useRecommendations = (rfpId: string) => {
       )
       analysis.value = data.analysis
       recommendations.value = data.recommendations
-    } catch (e: any) {
-      error.value = e.message ?? 'Failed to fetch recommendations'
-    } finally {
-      loading.value = false
+    } catch (caught: unknown) {
+      error.value = caught instanceof Error ? caught.message : 'Failed to fetch recommendations'
     }
-  }
+  })
 
   const toggleSelection = (id: string) => {
     const rec = recommendations.value.find((r) => r.id === id)
@@ -32,5 +29,5 @@ export const useRecommendations = (rfpId: string) => {
     recommendations.value.filter((r) => r.selected).map((r) => r.caseStudyId)
   )
 
-  return { recommendations, analysis, loading, error, fetch, toggleSelection, selectedIds }
+  return { recommendations, analysis, loading: actionState.loading, fetching: actionState.isActive('fetching'), error, fetch, toggleSelection, selectedIds }
 }

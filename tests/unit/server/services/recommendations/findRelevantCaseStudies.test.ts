@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CaseStudy } from '~/types/case-study'
 import type { RfpAnalysis } from '~/types/rfp'
-import { findRelevantCaseStudies } from './findRelevantCaseStudies'
+import { findRelevantCaseStudies } from '#server/services/recommendations/findRelevantCaseStudies'
 
 const analysis: RfpAnalysis = {
   rfpId: 'rfp-1', clientName: 'Bank', industry: 'Banking', businessProblems: [],

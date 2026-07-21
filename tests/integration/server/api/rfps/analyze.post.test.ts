@@ -1,14 +1,14 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { LMStudioUnavailableError } from '../../services/ai/lmStudio'
+import { LMStudioUnavailableError } from '#server/services/ai/lmStudio'
 
-let handleRfpAnalysis: typeof import('./[id]/analyze.post')['handleRfpAnalysis']
+let handleRfpAnalysis: typeof import('#server/api/rfps/[id]/analyze.post')['handleRfpAnalysis']
 
 beforeAll(async () => {
   vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
   vi.stubGlobal('getRouterParam', (event: { context: { params: { id?: string } } }, key: string) => event.context.params[key as 'id'])
   vi.stubGlobal('createError', ({ statusCode, statusMessage }: { statusCode: number; statusMessage: string }) =>
     Object.assign(new Error(statusMessage), { statusCode, statusMessage }))
-  ;({ handleRfpAnalysis } = await import('./[id]/analyze.post'))
+  ;({ handleRfpAnalysis } = await import('#server/api/rfps/[id]/analyze.post'))
 })
 
 const analysis = {
@@ -20,6 +20,7 @@ const analysis = {
 
 function deps() {
   return {
+    isChatModelConfigured: vi.fn().mockReturnValue(true),
     getRfpInput: vi.fn().mockResolvedValue({ text: 'RFP body' }),
     analyze: vi.fn().mockResolvedValue(analysis),
     saveAnalysis: vi.fn().mockResolvedValue(undefined),

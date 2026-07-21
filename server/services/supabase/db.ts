@@ -1,13 +1,20 @@
 /**
  * Typed Supabase DB query helpers.
- * All functions return null when Supabase is not configured — callers use mock data.
- * All functions throw createError on Supabase query errors.
+ * A missing Supabase client is represented as null for callers to translate into a
+ * dependency-unavailable response. Query failures are logged and sanitized.
  */
 import type { CaseStudy, CaseStudySlide } from '~/types/case-study'
 import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
 import type { ProposalGeneration } from '~/types/proposal'
 import { getSupabaseClient } from './client'
 import type { CaseStudyRow, SlideRow, RfpRow, ProposalRow } from './types'
+import { databaseFailure } from '../../utils/errors'
+import { logError } from '../../utils/logger'
+
+function throwDatabaseFailure(operation: string, error: unknown): never {
+  logError('database_failure', error, { operation, dependency: 'supabase' })
+  throw databaseFailure(error).toH3()
+}
 
 // ── Row → Type mappers ────────────────────────────────────────────────────────
 
@@ -86,7 +93,7 @@ export async function dbGetCaseStudies(): Promise<CaseStudy[] | null> {
     .select('*, case_study_slides(*)')
     .order('uploaded_at', { ascending: false })
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('list_case_studies', error)
   return (data as any[]).map(mapCaseStudy)
 }
 
@@ -109,7 +116,7 @@ export async function dbSearchCaseStudies(query: string): Promise<CaseStudy[] | 
   if (!sb) return null
 
   const { data: matches, error: matchError } = await (sb as any).rpc('search_case_studies', { search_text: query })
-  if (matchError) throw createError({ statusCode: 500, statusMessage: matchError.message })
+  if (matchError) throwDatabaseFailure('search_case_studies', matchError)
   const ids = (matches ?? []).map((match: { case_study_id: string }) => match.case_study_id)
   if (!ids.length) return []
   const { data, error } = await sb
@@ -118,7 +125,7 @@ export async function dbSearchCaseStudies(query: string): Promise<CaseStudy[] | 
     .in('id', ids)
     .order('uploaded_at', { ascending: false })
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('load_search_case_studies', error)
   return (data as any[]).map(mapCaseStudy)
 }
 
@@ -143,7 +150,7 @@ export async function dbInsertCaseStudy(
     .select('*, case_study_slides(*)')
     .single()
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('insert_case_study', error)
   return mapCaseStudy(data as any)
 }
 
@@ -155,7 +162,7 @@ export async function dbUpdateCaseStudyStatus(
   if (!sb) return
 
   const { error } = await (sb as any).from('case_studies').update({ status }).eq('id', id)
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('update_case_study_status', error)
 }
 
 export async function dbUpdateCaseStudyFilePath(id: string, filePath: string): Promise<void> {
@@ -167,7 +174,7 @@ export async function dbUpdateCaseStudyFilePath(id: string, filePath: string): P
     .update({ file_path: filePath })
     .eq('id', id)
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('update_case_study_file_path', error)
 }
 
 export async function dbInsertCaseStudySlides(
@@ -187,7 +194,7 @@ export async function dbInsertCaseStudySlides(
   }))
   const { error } = await (sb as any).from('case_study_slides').insert(rows)
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('insert_case_study_slides', error)
 }
 
 export interface VectorSlideMatch {
@@ -232,7 +239,7 @@ export async function dbGetRfps(): Promise<RfpDocument[] | null> {
     .select('*')
     .order('uploaded_at', { ascending: false })
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('list_rfps', error)
   return (data as RfpRow[]).map(mapRfp)
 }
 
@@ -273,7 +280,7 @@ export async function dbInsertRfp(
     .select('*')
     .single()
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('insert_rfp', error)
   return mapRfp(data as RfpRow)
 }
 
@@ -289,7 +296,7 @@ export async function dbSaveRfpAnalysis(id: string, analysis: RfpAnalysis): Prom
   const sb = getSupabaseClient()
   if (!sb) return
   const { error } = await (sb as any).from('rfp_documents').update({ analysis }).eq('id', id)
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('save_rfp_analysis', error)
 }
 
 export async function dbGetRfpAnalysis(id: string): Promise<RfpAnalysis | null> {
@@ -304,14 +311,53 @@ export async function dbUpdateRfpStatus(id: string, status: RfpDocument['status'
   const sb = getSupabaseClient()
   if (!sb) return
   const { error } = await (sb as any).from('rfp_documents').update({ status }).eq('id', id)
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('update_rfp_status', error)
 }
 
 export async function dbUpdateRfpFilePath(id: string, filePath: string): Promise<void> {
   const sb = getSupabaseClient()
   if (!sb) return
   const { error } = await (sb as any).from('rfp_documents').update({ file_path: filePath }).eq('id', id)
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('update_rfp_file_path', error)
+}
+
+export async function dbCountCaseStudiesIndexed(): Promise<number | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+
+  const { count, error } = await (sb as any)
+    .from('case_studies')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'indexed')
+
+  if (error) throwDatabaseFailure('count_case_studies_indexed', error)
+  return count ?? 0
+}
+
+export async function dbCountRfpsAnalyzed(): Promise<number | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+
+  const { count, error } = await (sb as any)
+    .from('rfp_documents')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'analyzed')
+
+  if (error) throwDatabaseFailure('count_rfps_analyzed', error)
+  return count ?? 0
+}
+
+export async function dbCountProposalsGenerated(): Promise<number | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+
+  const { count, error } = await (sb as any)
+    .from('proposals')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['completed', 'error'])
+
+  if (error) throwDatabaseFailure('count_proposals_generated', error)
+  return count ?? 0
 }
 
 // ── Proposals ─────────────────────────────────────────────────────────────────
@@ -352,7 +398,7 @@ export async function dbInsertProposal(
     completed_at:            proposal.completedAt ?? null,
   } as any)
 
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('update_proposal', error)
 }
 
 export interface ProposalUpdate {
@@ -381,7 +427,7 @@ export async function dbUpdateProposal(id: string, update: ProposalUpdate): Prom
   if (update.errorMessage !== undefined) values.error_message = update.errorMessage
   if (update.completedAt !== undefined) values.completed_at = update.completedAt
   const { error } = await (sb as any).from('proposals').update(values).eq('id', id)
-  if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+  if (error) throwDatabaseFailure('update_proposal', error)
 }
 
 export interface ProposalArtifact {

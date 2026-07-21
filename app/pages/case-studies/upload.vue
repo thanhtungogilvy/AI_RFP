@@ -16,12 +16,7 @@ async function handleFile(file: File) {
 async function handleSubmit() {
   if (!uploadedFile.value || !title.value.trim() || !client.value.trim()) return
   try {
-    const formData = new FormData()
-    formData.append('file', uploadedFile.value)
-    formData.append('title', title.value)
-    formData.append('client', client.value)
-    formData.append('industry', industry.value)
-    await $fetch('/api/case-studies/upload', { method: 'POST', body: formData })
+    await upload(uploadedFile.value, { title: title.value, client: client.value, industry: industry.value })
     uploadSuccess.value = true
     setTimeout(() => router.push('/case-studies'), 1500)
   } catch {

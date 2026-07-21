@@ -2,6 +2,7 @@ import type { H3Event, MultiPartData } from 'h3'
 import { isSupabaseConfigured } from '../../services/supabase/client'
 import { indexCaseStudy, PPTX_MIME } from '../../services/case-studies/indexCaseStudy'
 import { MAX_UPLOAD_BYTES, readBoundedMultipartFormData } from '../../utils/upload'
+import { logError } from '../../utils/logger'
 
 const ACCEPTED_CONTENT_TYPES = new Set([PPTX_MIME, 'application/octet-stream'])
 export { readBoundedMultipartFormData } from '../../utils/upload'
@@ -80,7 +81,7 @@ export async function handleCaseStudyUpload(event: H3Event, deps: UploadDependen
     if (isPptxValidationError(error)) {
       throw createError({ statusCode: 400, statusMessage: error.message })
     }
-    console.error('Case study indexing failed', error)
+    logError('case_study_indexing_failed', error, { operation: 'case_study_upload' })
     throw createError({ statusCode: 500, statusMessage: 'Case study indexing failed' })
   }
 }

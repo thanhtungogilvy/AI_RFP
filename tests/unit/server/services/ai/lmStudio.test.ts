@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LMStudioProvider, LMStudioUnavailableError } from './lmStudio'
+import { LMStudioProvider, LMStudioUnavailableError } from '#server/services/ai/lmStudio'
 
 afterEach(() => {
   vi.unstubAllEnvs()

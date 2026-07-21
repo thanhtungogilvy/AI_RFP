@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { analyzeRfp, splitRfpText } from './analyzeRfp'
+import { analyzeRfp, splitRfpText } from '#server/services/rfp/analyzeRfp'
 
 describe('analyzeRfp', () => {
   it('returns a validated strict RFP analysis from the model JSON', async () => {

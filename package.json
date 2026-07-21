@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "backfill:embeddings": "node scripts/backfill-embeddings.mjs --apply",
     "typecheck": "nuxt typecheck"
   },
@@ -37,6 +39,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.16.0",
     "@playwright/test": "^1.61.1",
     "eslint": "^10.7.0",
     "prettier": "^3.9.5",

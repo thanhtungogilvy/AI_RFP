@@ -1,9 +1,11 @@
 import type { AIProvider, CompletionOptions } from './provider'
+import { getServerEnvironment, type ServerEnvironment } from '../../utils/environment'
 
 type Fetcher = typeof fetch
 
 interface LMStudioProviderOptions {
   fetcher?: Fetcher
+  environment?: Partial<ServerEnvironment>
 }
 
 interface ChatCompletionResponse {
@@ -27,11 +29,12 @@ export class LMStudioProvider implements AIProvider {
   private readonly chatModel: string
   private readonly embeddingModel: string
 
-  constructor({ fetcher = fetch }: LMStudioProviderOptions = {}) {
+  constructor({ fetcher = fetch, environment }: LMStudioProviderOptions = {}) {
+    const configured = { ...getServerEnvironment(), ...environment }
     this.fetcher = fetcher
-    this.baseUrl = (process.env.LMSTUDIO_BASE_URL ?? process.env.LM_STUDIO_BASE_URL ?? 'http://localhost:1234').replace(/\/+$/, '')
-    this.chatModel = process.env.LMSTUDIO_CHAT_MODEL ?? process.env.LM_STUDIO_MODEL ?? 'local-model'
-    this.embeddingModel = process.env.LMSTUDIO_EMBEDDING_MODEL ?? process.env.LM_STUDIO_EMBEDDING_MODEL ?? 'local-model'
+    this.baseUrl = configured.lmStudioBaseUrl.replace(/\/+$/, '')
+    this.chatModel = configured.lmStudioChatModel ?? 'local-model'
+    this.embeddingModel = configured.lmStudioEmbeddingModel ?? 'local-model'
   }
 
   async complete(prompt: string, options: CompletionOptions = {}): Promise<string> {

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getSupabaseClient } = vi.hoisted(() => ({ getSupabaseClient: vi.fn() }))
-vi.mock('./client', () => ({ getSupabaseClient }))
+vi.mock('#server/services/supabase/client', () => ({ getSupabaseClient }))
 
-import { uploadFile } from './storage'
+import { uploadFile } from '#server/services/supabase/storage'
 
 describe('uploadFile', () => {
   beforeEach(() => vi.clearAllMocks())

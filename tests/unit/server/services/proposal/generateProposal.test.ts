@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { CaseStudy } from '~/types/case-study'
 import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
-import { generateProposal } from './generateProposal'
+import { generateProposal } from '#server/services/proposal/generateProposal'
 
 beforeAll(() => {
   vi.stubGlobal('createError', ({ statusCode, statusMessage }: { statusCode: number, statusMessage: string }) =>
@@ -45,9 +45,11 @@ describe('generateProposal', () => {
   })
 
   it('marks a proposal as error when artifact upload fails', async () => {
-    const testDeps = deps({ uploadFile: vi.fn().mockRejectedValue(new Error('storage unavailable')) })
-    await expect(generateProposal({ rfpId: 'rfp-1', selectedCaseStudyIds: ['case-1'] }, testDeps as any)).rejects.toThrow('storage unavailable')
-    expect(testDeps.updateProposal).toHaveBeenCalledWith('proposal-1', expect.objectContaining({ status: 'error', errorMessage: 'storage unavailable' }))
+    const testDeps = deps({ uploadFile: vi.fn().mockRejectedValue(new Error('storage unavailable: secret-token')) })
+    await expect(generateProposal({ rfpId: 'rfp-1', selectedCaseStudyIds: ['case-1'] }, testDeps as any)).rejects.toThrow('storage unavailable: secret-token')
+    expect(testDeps.updateProposal).toHaveBeenCalledWith('proposal-1', expect.objectContaining({
+      status: 'error', errorMessage: 'An unexpected server error occurred.',
+    }))
   })
 
   it('rejects requested PDF export before creating a proposal when the converter is unavailable', async () => {
@@ -59,6 +61,6 @@ describe('generateProposal', () => {
   it('keeps the PPTX completed when optional PDF conversion fails', async () => {
     const testDeps = deps({ canExportPdf: vi.fn().mockReturnValue(true), convertPdf: vi.fn().mockRejectedValue(new Error('converter failed')) })
     const proposal = await generateProposal({ rfpId: 'rfp-1', selectedCaseStudyIds: ['case-1'], includePdf: true }, testDeps as any)
-    expect(proposal).toMatchObject({ status: 'completed', pdfStatus: 'error', pdfErrorMessage: 'converter failed' })
+    expect(proposal).toMatchObject({ status: 'completed', pdfStatus: 'error', pdfErrorMessage: 'PDF conversion failed' })
   })
 })
