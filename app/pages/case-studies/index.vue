@@ -1,7 +1,5 @@
 <script setup lang="ts">
-const { caseStudies, loading, fetchAll, search } = useCaseStudies()
-import { demoCaseStudies } from '~/utils/demoData'
-const displayCaseStudies = computed(() => caseStudies.value.length ? caseStudies.value : demoCaseStudies)
+const { caseStudies, loading, error, fetchAll, search } = useCaseStudies()
 
 const query = ref('')
 const debouncedSearch = useDebounceFn(async () => {
@@ -43,12 +41,13 @@ onMounted(fetchAll)
     </div>
 
     <!-- Empty -->
-    <div v-else-if="!caseStudies.length" class="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">Demo data is shown while your knowledge base is empty. <NuxtLink class="font-medium underline" to="/case-studies/upload">Upload Case Study</NuxtLink> to use real content.</div>
+    <div v-else-if="error" class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{{ error }}</div>
+    <EmptyState v-else-if="!caseStudies.length" title="Knowledge Base is empty" description="Upload a PPTX case study to start building the indexed library." />
 
     <!-- Grid -->
-    <div v-if="displayCaseStudies.length" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div v-if="caseStudies.length" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       <CaseStudyCard
-        v-for="cs in displayCaseStudies"
+        v-for="cs in caseStudies"
         :key="cs.id"
         :case-study="cs"
       />

@@ -46,6 +46,7 @@ function toRecommendation(
     reasons: reasons(analysis, excerpts),
     matchedRequirements: analysis.searchKeywords.filter(keyword => excerpts.some(slide => slide.excerpt.toLowerCase().includes(keyword.toLowerCase()))),
     matchedSlideExcerpts: excerpts,
+    explanationSource: 'fallback',
     selected,
   }
 }
@@ -85,20 +86,37 @@ const defaultDependencies: RecommendationDependencies = { generateEmbedding, mat
 export async function findRelevantCaseStudies(
   analysis: RfpAnalysis, caseStudies: CaseStudy[], deps: RecommendationDependencies = defaultDependencies,
 ): Promise<CaseStudyRecommendation[]> {
+  let ranked: CaseStudyRecommendation[]
   try {
     const query = buildRecommendationQuery(analysis)
-    if (!query) return keywordRecommendations(analysis, caseStudies)
-    const matches = await deps.matchSlides(await deps.generateEmbedding(query))
-    const groups = new Map<string, VectorSlideMatch[]>()
-    for (const match of matches) groups.set(match.caseStudyId, [...(groups.get(match.caseStudyId) ?? []), match])
-    const ranked = [...groups.values()].map((group, index) => toRecommendation(analysis, group, index === 0))
-      .sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, MAX_RESULTS).map((item, index) => ({ ...item, selected: index === 0 }))
+    if (!query) ranked = keywordRecommendations(analysis, caseStudies)
+    else {
+      const matches = await deps.matchSlides(await deps.generateEmbedding(query))
+      if (!matches.length) return []
+      const groups = new Map<string, VectorSlideMatch[]>()
+      for (const match of matches) groups.set(match.caseStudyId, [...(groups.get(match.caseStudyId) ?? []), match])
+      ranked = [...groups.values()].map((group, index) => toRecommendation(analysis, group, index === 0))
+        .sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, MAX_RESULTS).map((item, index) => ({ ...item, selected: index === 0 }))
+    }
+  } catch (error) {
+    console.error('Semantic case-study recommendation failed; using keyword fallback', error)
+    ranked = keywordRecommendations(analysis, caseStudies)
+  }
+
+  if (!ranked.length) return []
+  try {
     const explanations = await deps.explain(analysis, ranked)
     const byId = new Map(explanations.map(item => [item.caseStudyId, item]))
-    return ranked.map(item => ({ ...item, reasons: [byId.get(item.caseStudyId)!.reason], matchedRequirements: byId.get(item.caseStudyId)!.matchedRequirements, confidenceScore: byId.get(item.caseStudyId)!.confidence }))
+    return ranked.map(item => ({
+      ...item,
+      reasons: [byId.get(item.caseStudyId)!.reason],
+      matchedRequirements: byId.get(item.caseStudyId)!.matchedRequirements,
+      confidenceScore: byId.get(item.caseStudyId)!.confidence,
+      explanationSource: 'ai' as const,
+      explanationWarning: undefined,
+    }))
   } catch (error) {
-    if (error instanceof Error && error.name === 'RecommendationExplanationUnavailableError') throw error
-    console.error('Semantic case-study recommendation failed; using keyword fallback', error)
-    return keywordRecommendations(analysis, caseStudies)
+    console.error('AI recommendation explanation failed; using deterministic explanation', error)
+    return ranked.map(item => ({ ...item, explanationSource: 'fallback' as const, explanationWarning: 'AI explanation unavailable' }))
   }
 }

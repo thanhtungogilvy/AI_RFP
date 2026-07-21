@@ -1,180 +1,139 @@
-import { writeFile, mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
-import type { ProposalGeneration } from '~/types/proposal'
 import type { CaseStudy } from '~/types/case-study'
-import type { RfpDocument, RfpAnalysis } from '~/types/rfp'
+import type { ProposalGeneration } from '~/types/proposal'
+import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
 import { generateProposalDeck } from '../pptx/generateProposalDeck'
-import { dbGetCaseStudyById, dbGetRfpById, dbInsertProposal } from '../supabase/db'
+import { buildProposalData } from './buildProposalData'
+import { isSupabaseConfigured } from '../supabase/client'
+import {
+  dbGetCaseStudyById,
+  dbGetRfpAnalysis,
+  dbGetRfpById,
+  dbInsertProposal,
+  dbUpdateProposal,
+  type ProposalUpdate,
+} from '../supabase/db'
+import { uploadFile } from '../supabase/storage'
+import { canExportPdf, convertPptxToPdf } from '../pdf/convertProposal'
 
-// ── Local file storage ────────────────────────────────────────────────────────
+export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 
-export function getProposalsDir(): string {
-  return join(process.cwd(), '.generated', 'proposals')
-}
-
-export function getPptxPath(proposalId: string): string {
-  return join(getProposalsDir(), `${proposalId}.pptx`)
-}
-
-// ── Mock data (fallback when Supabase is not configured) ──────────────────────
-
-const MOCK_RFPS: RfpDocument[] = [
-  {
-    id: 'rfp-001',
-    title: 'Core Banking System Modernisation RFP',
-    client: 'ABC Bank',
-    industry: 'Banking & Finance',
-    deadline: '2025-09-30',
-    fileName: 'abc-bank-core-banking-rfp.pdf',
-    uploadedAt: '2025-07-10T09:00:00Z',
-    status: 'analyzed',
-  },
-  {
-    id: 'rfp-002',
-    title: 'AI Customer Engagement Platform',
-    client: 'RetailCo Vietnam',
-    industry: 'Retail',
-    deadline: '2025-08-15',
-    fileName: 'retailco-ai-engagement-rfp.pdf',
-    uploadedAt: '2025-07-12T14:00:00Z',
-    status: 'uploaded',
-  },
-]
-
-const MOCK_CASE_STUDIES: CaseStudy[] = [
-  {
-    id: 'cs-001',
-    title: 'Digital Transformation for Vietcombank',
-    client: 'Vietcombank',
-    industry: 'Banking & Finance',
-    summary: 'End-to-end digital banking platform modernisation, replacing legacy core systems with cloud-native microservices.',
-    tags: ['digital transformation', 'banking', 'cloud', 'microservices'],
-    slides: [
-      { slideIndex: 0, title: 'Executive Summary', content: 'Modernised core banking platform for 10M+ customers.', tags: ['summary'] },
-      { slideIndex: 1, title: 'Challenge', content: 'Legacy monolithic system causing 2-hour daily downtime and preventing new product launches.', tags: ['challenge'] },
-      { slideIndex: 2, title: 'Solution', content: 'Cloud-native microservices on AWS with zero-downtime blue/green deployment pipeline and event-driven architecture.', tags: ['solution', 'cloud'] },
-      { slideIndex: 3, title: 'Results', content: '99.99% uptime achieved. 40% reduction in infrastructure costs. 3x faster time-to-market for new products.', tags: ['results'] },
-    ],
-    fileName: 'vietcombank-digital-transformation.pptx',
-    uploadedAt: '2025-06-01T09:00:00Z',
-    status: 'indexed',
-  },
-  {
-    id: 'cs-002',
-    title: 'AI-Powered Customer Service for Masan Group',
-    client: 'Masan Group',
-    industry: 'Retail & FMCG',
-    summary: 'Deployed conversational AI chatbot handling 80% of tier-1 customer queries across multiple channels.',
-    tags: ['AI', 'chatbot', 'customer service', 'retail', 'NLP'],
-    slides: [
-      { slideIndex: 0, title: 'Overview', content: 'AI chatbot serving 500k monthly interactions across web, mobile, and LINE channels.', tags: ['overview'] },
-      { slideIndex: 1, title: 'Technology', content: 'LLM-based NLP pipeline with RAG architecture, integrated with existing CRM and order management systems.', tags: ['AI', 'technology'] },
-      { slideIndex: 2, title: 'Results', content: '80% query deflection from human agents. CSAT increased from 3.2 to 4.6 (out of 5). Cost per interaction reduced by 65%.', tags: ['results'] },
-    ],
-    fileName: 'masan-ai-customer-service.pptx',
-    uploadedAt: '2025-06-15T11:00:00Z',
-    status: 'indexed',
-  },
-  {
-    id: 'cs-003',
-    title: 'Data Platform Modernisation for VinGroup',
-    client: 'VinGroup',
-    industry: 'Conglomerate',
-    summary: 'Unified enterprise data platform consolidating 20+ data silos into a single source of truth.',
-    tags: ['data platform', 'analytics', 'data warehouse', 'BI'],
-    slides: [
-      { slideIndex: 0, title: 'Background', content: '20+ fragmented data sources across 8 business units with no unified view of the business.', tags: ['background'] },
-      { slideIndex: 1, title: 'Solution', content: 'Lakehouse architecture on Azure using dbt for transformation, Databricks for processing, and Power BI for self-service analytics.', tags: ['technology'] },
-      { slideIndex: 2, title: 'Results', content: 'Data-driven decisions reduced inventory costs by 18%. Finance close cycle cut from 12 days to 3 days. 250+ active Power BI reports across the group.', tags: ['results'] },
-    ],
-    fileName: 'vingroup-data-platform.pptx',
-    uploadedAt: '2025-07-01T08:30:00Z',
-    status: 'indexed',
-  },
-]
-
-const MOCK_ANALYSIS: RfpAnalysis = {
-  rfpId: 'rfp-001',
-  clientName: 'ABC Bank',
-  industry: 'Banking & Finance',
-  businessProblems: ['Legacy core banking infrastructure'],
-  requiredCapabilities: ['Cloud-native architecture', 'Zero-downtime deployment'],
-  technicalRequirements: ['AWS or Azure', '99.99% SLA'],
-  evaluationCriteria: ['Banking delivery experience'],
-  summary:
-    'The client is seeking a vendor to modernise their core banking infrastructure with a focus on scalability, 24/7 availability, regulatory compliance, and integration with third-party fintech services.',
-  searchKeywords: ['cloud migration', 'banking modernisation', 'compliance', 'high availability', 'open banking'],
-  analyzedAt: new Date().toISOString(),
-}
-
-// ── Data fetchers (Supabase → mock fallback) ──────────────────────────────────
-
-async function getRfp(rfpId: string): Promise<RfpDocument | undefined> {
-  return (await dbGetRfpById(rfpId)) ?? MOCK_RFPS.find(r => r.id === rfpId)
-}
-
-async function getCaseStudies(ids: string[]): Promise<CaseStudy[]> {
-  if (!ids.length) return MOCK_CASE_STUDIES
-
-  const resolved = await Promise.all(
-    ids.map(id => dbGetCaseStudyById(id))
-  )
-
-  // If any were resolved from Supabase, use those; fall back to mock for nulls
-  const mixed = resolved.map((cs, i) => cs ?? MOCK_CASE_STUDIES.find(m => m.id === ids[i]))
-  return mixed.filter(Boolean) as CaseStudy[]
-}
-
-function getAnalysis(rfpId: string): RfpAnalysis | undefined {
-  return rfpId === 'rfp-001' ? MOCK_ANALYSIS : undefined
-}
-
-// ── Main pipeline ─────────────────────────────────────────────────────────────
-
-/**
- * Generates a PPTX proposal deck, saves it to disk, and persists the record
- * in Supabase (if configured).
- */
-export async function generateProposal(
-  rfpId: string,
+export interface GenerateProposalInput {
+  rfpId: string
   selectedCaseStudyIds: string[]
+  includePdf?: boolean
+}
+
+export interface GenerateProposalDependencies {
+  isConfigured: typeof isSupabaseConfigured
+  getRfp: (id: string) => Promise<RfpDocument | null>
+  getAnalysis: (id: string) => Promise<RfpAnalysis | null>
+  getCaseStudy: (id: string) => Promise<CaseStudy | null>
+  insertProposal: typeof dbInsertProposal
+  updateProposal: (id: string, update: ProposalUpdate) => Promise<void>
+  generateDeck: typeof generateProposalDeck
+  uploadFile: typeof uploadFile
+  canExportPdf: typeof canExportPdf
+  convertPdf: typeof convertPptxToPdf
+  newId: () => string
+}
+
+const defaultDependencies: GenerateProposalDependencies = {
+  isConfigured: isSupabaseConfigured,
+  getRfp: dbGetRfpById,
+  getAnalysis: dbGetRfpAnalysis,
+  getCaseStudy: dbGetCaseStudyById,
+  insertProposal: dbInsertProposal,
+  updateProposal: dbUpdateProposal,
+  generateDeck: generateProposalDeck,
+  uploadFile,
+  canExportPdf,
+  convertPdf: convertPptxToPdf,
+  newId: () => `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+}
+
+function httpError(statusCode: number, statusMessage: string): Error {
+  return createError({ statusCode, statusMessage })
+}
+
+export async function generateProposal(
+  input: GenerateProposalInput,
+  deps: GenerateProposalDependencies = defaultDependencies,
 ): Promise<ProposalGeneration> {
-  const proposalId  = `proposal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-  const now         = new Date().toISOString()
-
-  const rfp         = await getRfp(rfpId)
-  if (!rfp) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: `RFP ${rfpId} not found`,
-    })
+  if (!input.rfpId?.trim()) throw httpError(400, 'rfpId is required')
+  if (!Array.isArray(input.selectedCaseStudyIds) || !input.selectedCaseStudyIds.length) {
+    throw httpError(400, 'Select at least one indexed case study')
   }
-  const caseStudies = await getCaseStudies(selectedCaseStudyIds)
-  const analysis    = getAnalysis(rfpId)
-  const title       = `Proposal for ${rfp.client}`
+  if (!input.selectedCaseStudyIds.every(id => typeof id === 'string' && id.trim())) {
+    throw httpError(400, 'selectedCaseStudyIds must contain valid ids')
+  }
+  if (input.includePdf && !deps.canExportPdf()) throw httpError(422, 'PDF export is unavailable on this server')
+  if (!deps.isConfigured()) throw httpError(503, 'Proposal generation requires Supabase configuration')
 
-  // Generate PPTX buffer
-  const buffer = await generateProposalDeck({ rfp, analysis, caseStudies, title })
+  const [rfp, analysis, ...selected] = await Promise.all([
+    deps.getRfp(input.rfpId),
+    deps.getAnalysis(input.rfpId),
+    ...input.selectedCaseStudyIds.map(id => deps.getCaseStudy(id)),
+  ])
+  if (!rfp) throw httpError(404, 'RFP not found')
+  if (rfp.status !== 'analyzed' || !analysis) throw httpError(409, 'RFP must be analyzed before generating a proposal')
+  if (selected.some(item => !item || item.status !== 'indexed')) {
+    throw httpError(400, 'Every selected case study must exist and be indexed')
+  }
 
-  // Save to local disk
-  const dir = getProposalsDir()
-  await mkdir(dir, { recursive: true })
-  await writeFile(getPptxPath(proposalId), buffer)
-
+  const proposalId = deps.newId()
+  const now = new Date().toISOString()
   const proposal: ProposalGeneration = {
-    id:                   proposalId,
-    rfpId,
-    title,
-    status:               'completed',
-    selectedCaseStudyIds,
-    pptxUrl:              `/api/proposals/${proposalId}/download?format=pptx`,
-    pdfUrl:               null,
-    createdAt:            now,
-    completedAt:          new Date().toISOString(),
+    id: proposalId,
+    rfpId: rfp.id,
+    title: `Proposal for ${rfp.client}`,
+    status: 'generating',
+    selectedCaseStudyIds: input.selectedCaseStudyIds,
+    pptxUrl: null,
+    pdfUrl: null,
+    pdfStatus: 'not_requested',
+    createdAt: now,
   }
+  await deps.insertProposal(proposal)
 
-  // Persist record to Supabase (non-blocking — failure doesn't break the response)
-  await dbInsertProposal(proposal)
-
-  return proposal
+  try {
+    const data = buildProposalData(rfp, analysis, selected as CaseStudy[])
+    const buffer = await deps.generateDeck(data)
+    const pptxPath = `${proposalId}/proposal.pptx`
+    await deps.uploadFile('proposals', pptxPath, buffer, PPTX_MIME)
+    const completedAt = new Date().toISOString()
+    let pdfStatus: NonNullable<ProposalGeneration['pdfStatus']> = 'not_requested'
+    let pdfUrl: string | null = null
+    let pdfPath: string | null = null
+    let pdfErrorMessage: string | undefined
+    if (input.includePdf) {
+      try {
+        const pdf = await deps.convertPdf(buffer)
+        pdfPath = `${proposalId}/proposal.pdf`
+        await deps.uploadFile('proposals', pdfPath, pdf, 'application/pdf')
+        pdfUrl = `/api/proposals/${proposalId}/download?format=pdf`
+        pdfStatus = 'completed'
+      } catch (error) {
+        pdfStatus = 'error'
+        pdfErrorMessage = error instanceof Error ? error.message : 'PDF conversion failed'
+      }
+    }
+    const completed: ProposalGeneration = {
+      ...proposal,
+      status: 'completed',
+      pptxUrl: `/api/proposals/${proposalId}/download?format=pptx`,
+      pdfUrl,
+      pdfStatus,
+      pdfErrorMessage,
+      completedAt,
+    }
+    await deps.updateProposal(proposalId, {
+      status: 'completed', pptxPath, pptxUrl: completed.pptxUrl,
+      completedAt, pdfPath, pdfUrl, pdfStatus, pdfErrorMessage: pdfErrorMessage ?? null, errorMessage: null,
+    })
+    return completed
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Proposal generation failed'
+    await deps.updateProposal(proposalId, { status: 'error', errorMessage }).catch(() => undefined)
+    throw error
+  }
 }

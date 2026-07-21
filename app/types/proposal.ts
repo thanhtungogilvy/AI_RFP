@@ -6,6 +6,8 @@ export interface ProposalGeneration {
   selectedCaseStudyIds: string[]
   pptxUrl: string | null
   pdfUrl: string | null
+  pdfStatus?: 'not_requested' | 'completed' | 'error'
+  pdfErrorMessage?: string
   createdAt: string
   completedAt?: string
   errorMessage?: string

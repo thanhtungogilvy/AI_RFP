@@ -1,4 +1,4 @@
-import type { AIProvider } from './provider'
+import type { AIProvider, CompletionOptions } from './provider'
 
 type Fetcher = typeof fetch
 
@@ -34,39 +34,20 @@ export class LMStudioProvider implements AIProvider {
     this.embeddingModel = process.env.LMSTUDIO_EMBEDDING_MODEL ?? process.env.LM_STUDIO_EMBEDDING_MODEL ?? 'local-model'
   }
 
-  async complete(prompt: string, systemPrompt?: string): Promise<string> {
+  async complete(prompt: string, options: CompletionOptions = {}): Promise<string> {
     const response = await this.request<ChatCompletionResponse>('/v1/chat/completions', {
       model: this.chatModel,
       messages: [
-        ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+        ...(options.systemPrompt ? [{ role: 'system', content: options.systemPrompt }] : []),
         { role: 'user', content: prompt },
       ],
       temperature: 0.2,
       max_tokens: 2048,
       stream: false,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'rfp_analysis',
-          strict: true,
-          schema: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              clientName: { type: 'string' },
-              industry: { type: 'string' },
-              businessProblems: { type: 'array', items: { type: 'string' } },
-              requiredCapabilities: { type: 'array', items: { type: 'string' } },
-              technicalRequirements: { type: 'array', items: { type: 'string' } },
-              evaluationCriteria: { type: 'array', items: { type: 'string' } },
-              summary: { type: 'string' },
-              searchKeywords: { type: 'array', items: { type: 'string' } },
-            },
-            required: ['clientName', 'industry', 'businessProblems', 'requiredCapabilities', 'technicalRequirements', 'evaluationCriteria', 'summary', 'searchKeywords'],
-          },
-        },
-      },
-    })
+      ...(options.responseSchema ? {
+        response_format: { type: 'json_schema', json_schema: options.responseSchema },
+      } : {}),
+    }, options.timeoutMs)
     const content = response.choices?.[0]?.message?.content
     if (!content) throw new Error('LM Studio returned an empty chat completion')
     return content
@@ -76,22 +57,25 @@ export class LMStudioProvider implements AIProvider {
     const response = await this.request<EmbeddingsResponse>('/v1/embeddings', {
       model: this.embeddingModel,
       input,
-    })
+    }, 30_000)
     const embedding = response.data?.[0]?.embedding
     if (!embedding?.length) throw new Error('LM Studio returned an empty embedding')
     return embedding
   }
 
-  private async request<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  private async request<T>(path: string, body: Record<string, unknown>, timeoutMs = 90_000): Promise<T> {
     let response: Response
     try {
       response = await this.fetcher(`${this.baseUrl}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
       })
     } catch (error) {
-      if (error instanceof TypeError) throw new LMStudioUnavailableError()
+      if (error instanceof TypeError || (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError'))) {
+        throw new LMStudioUnavailableError(`LM Studio is unavailable or did not respond within ${Math.ceil(timeoutMs / 1000)} seconds.`)
+      }
       throw error
     }
 

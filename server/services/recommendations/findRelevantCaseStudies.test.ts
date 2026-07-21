@@ -37,4 +37,32 @@ describe('findRelevantCaseStudies', () => {
     expect(result[0]).toMatchObject({ caseStudyId: 'cs-1', selected: true })
     expect(result[0]?.matchedSlideExcerpts[0]?.excerpt).toContain('Cloud migration')
   })
+
+  it('returns labelled deterministic reasons when AI explanation remains unavailable', async () => {
+    const result = await findRelevantCaseStudies(analysis, caseStudies, {
+      generateEmbedding: vi.fn().mockResolvedValue([0.1]) as any,
+      matchSlides: vi.fn().mockResolvedValue([{
+        slideId: 'slide-1', caseStudyId: 'cs-1', caseStudyTitle: 'Bank cloud migration', caseStudyClient: 'Acme', caseStudyIndustry: 'Banking',
+        slideIndex: 1, slideTitle: 'Results', slideContent: 'Cloud migration completed with banking availability.', similarity: 0.9,
+      }]),
+      explain: vi.fn().mockRejectedValue(new Error('chat model down')),
+    })
+
+    expect(result[0]).toMatchObject({
+      caseStudyId: 'cs-1',
+      explanationSource: 'fallback',
+      explanationWarning: 'AI explanation unavailable',
+    })
+    expect(result[0]?.reasons[0]).toContain('Strongest evidence')
+  })
+
+  it('does not request an explanation when vector search finds no candidates', async () => {
+    const explain = vi.fn()
+    await expect(findRelevantCaseStudies(analysis, caseStudies, {
+      generateEmbedding: vi.fn().mockResolvedValue([0.1]) as any,
+      matchSlides: vi.fn().mockResolvedValue([]),
+      explain,
+    })).resolves.toEqual([])
+    expect(explain).not.toHaveBeenCalled()
+  })
 })

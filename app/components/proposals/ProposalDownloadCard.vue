@@ -46,5 +46,8 @@ defineProps<Props>()
         Files not yet available.
       </span>
     </div>
+    <p v-if="proposal.pdfStatus === 'error'" class="mt-3 text-xs text-amber-700">
+      PDF was not generated: {{ proposal.pdfErrorMessage ?? 'conversion failed' }}
+    </p>
   </div>
 </template>

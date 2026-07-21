@@ -17,4 +17,7 @@ export interface CaseStudy {
   fileName: string
   uploadedAt: string
   status: 'processing' | 'indexed' | 'error'
+  embeddingStatus?: 'pending' | 'complete' | 'partial' | 'failed'
+  embeddedSlideCount?: number
+  totalSlideCount?: number
 }

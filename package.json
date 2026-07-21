@@ -10,6 +10,8 @@
     "postinstall": "nuxt prepare",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "npm run build && playwright test",
+    "backfill:embeddings": "node scripts/backfill-embeddings.mjs --apply",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
@@ -35,6 +37,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "eslint": "^10.7.0",
     "prettier": "^3.9.5",
     "shadcn-vue": "^2.7.4",

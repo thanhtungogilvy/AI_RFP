@@ -1,6 +1,6 @@
 import type { AIProvider } from '../ai/provider'
 import { getAIProvider } from '../ai/provider'
-import { buildRecommendationExplanationPrompt, SYSTEM_PROMPT_RECOMMENDATION_EXPLAINER } from '../ai/prompts'
+import { buildRecommendationExplanationPrompt, RECOMMENDATION_EXPLANATION_RESPONSE_SCHEMA, SYSTEM_PROMPT_RECOMMENDATION_EXPLAINER } from '../ai/prompts'
 import type { CaseStudyRecommendation } from '~/types/recommendation'
 import type { RfpAnalysis } from '~/types/rfp'
 
@@ -11,7 +11,23 @@ export async function explainRecommendations(analysis: RfpAnalysis, recommendati
   try {
     const requirements = [...new Set([...analysis.requiredCapabilities, ...analysis.technicalRequirements, ...analysis.evaluationCriteria])]
     const payload = recommendations.map(item => ({ caseStudyId: item.caseStudyId, matchedSlideExcerpts: item.matchedSlideExcerpts }))
-    const raw = await (ai ?? await getAIProvider()).complete(buildRecommendationExplanationPrompt(requirements, JSON.stringify(payload)), SYSTEM_PROMPT_RECOMMENDATION_EXPLAINER)
+    const provider = ai ?? await getAIProvider()
+    let raw = ''
+    let lastError: unknown
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        raw = await provider.complete(buildRecommendationExplanationPrompt(requirements, JSON.stringify(payload)), {
+          systemPrompt: SYSTEM_PROMPT_RECOMMENDATION_EXPLAINER,
+          responseSchema: RECOMMENDATION_EXPLANATION_RESPONSE_SCHEMA,
+          timeoutMs: 60_000,
+        })
+        lastError = undefined
+        break
+      } catch (error) {
+        lastError = error
+      }
+    }
+    if (lastError) throw lastError
     const parsed = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, '').trim()) as { explanations?: RecommendationExplanation[] }
     if (!Array.isArray(parsed.explanations) || parsed.explanations.length !== recommendations.length) throw new Error('invalid explanation count')
     const expected = new Set(recommendations.map(item => item.caseStudyId))

@@ -25,6 +25,9 @@ export async function handleRfpAnalysis(event: Parameters<typeof getRouterParam>
   } catch (error) {
     await deps.updateStatus(rfpId, 'error').catch(() => undefined)
     if (error instanceof LMStudioUnavailableError) throw createError({ statusCode: 503, statusMessage: error.message })
+    if (error instanceof Error && error.message.startsWith('RFP text exceeds the ')) {
+      throw createError({ statusCode: 422, statusMessage: error.message })
+    }
     throw error
   }
 }

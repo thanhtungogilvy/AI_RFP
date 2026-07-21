@@ -5,13 +5,13 @@ export const useProposalGeneration = () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  const generate = async (rfpId: string, selectedCaseStudyIds: string[]) => {
+  const generate = async (rfpId: string, selectedCaseStudyIds: string[], includePdf = false) => {
     loading.value = true
     error.value = null
     try {
       const data = await $fetch<ProposalGeneration>('/api/proposals/generate', {
         method: 'POST',
-        body: { rfpId, selectedCaseStudyIds },
+        body: { rfpId, selectedCaseStudyIds, includePdf },
       })
       proposal.value = data
       return data

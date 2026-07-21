@@ -55,8 +55,9 @@ const scoreColor = computed(() => {
           </li>
         </ul>
         <p class="mt-2 text-xs text-muted-foreground">
-          AI confidence: <span class="font-medium text-foreground">{{ Math.round(recommendation.confidenceScore * 100) }}%</span>
+          {{ recommendation.explanationSource === 'ai' ? 'AI confidence' : 'Evidence confidence' }}: <span class="font-medium text-foreground">{{ Math.round(recommendation.confidenceScore * 100) }}%</span>
         </p>
+        <p v-if="recommendation.explanationWarning" class="mt-2 text-xs text-amber-700">{{ recommendation.explanationWarning }}. Showing deterministic evidence instead.</p>
         <div v-if="recommendation.matchedSlideExcerpts.length" class="mt-3 space-y-2">
           <div v-for="slide in recommendation.matchedSlideExcerpts" :key="slide.slideIndex" class="rounded border border-border p-2 text-xs">
             <p class="font-medium">Slide {{ slide.slideIndex }}{{ slide.title ? `: ${slide.title}` : '' }} · {{ Math.round(slide.similarity * 100) }}%</p>

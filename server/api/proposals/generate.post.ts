@@ -2,11 +2,14 @@ import { generateProposal } from '../../services/proposal/generateProposal'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const rfpId: string = body?.rfpId ?? 'rfp-001'
-  const selectedCaseStudyIds: string[] = Array.isArray(body?.selectedCaseStudyIds)
-    ? body.selectedCaseStudyIds
-    : []
+  if (!body || typeof body.rfpId !== 'string' || !Array.isArray(body.selectedCaseStudyIds)) {
+    throw createError({ statusCode: 400, statusMessage: 'rfpId and selectedCaseStudyIds are required' })
+  }
 
-  const proposal = await generateProposal(rfpId, selectedCaseStudyIds)
+  const proposal = await generateProposal({
+    rfpId: body.rfpId,
+    selectedCaseStudyIds: body.selectedCaseStudyIds,
+    includePdf: body.includePdf === true,
+  })
   return proposal
 })

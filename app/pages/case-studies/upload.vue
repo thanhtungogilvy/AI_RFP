@@ -4,11 +4,24 @@ const router = useRouter()
 
 const uploadedFile = ref<File | null>(null)
 const uploadSuccess = ref(false)
+const title = ref('')
+const client = ref('')
+const industry = ref('')
 
 async function handleFile(file: File) {
   uploadedFile.value = file
+  if (!title.value) title.value = file.name.replace(/\.pptx$/i, '')
+}
+
+async function handleSubmit() {
+  if (!uploadedFile.value || !title.value.trim() || !client.value.trim()) return
   try {
-    await upload(file)
+    const formData = new FormData()
+    formData.append('file', uploadedFile.value)
+    formData.append('title', title.value)
+    formData.append('client', client.value)
+    formData.append('industry', industry.value)
+    await $fetch('/api/case-studies/upload', { method: 'POST', body: formData })
     uploadSuccess.value = true
     setTimeout(() => router.push('/case-studies'), 1500)
   } catch {
@@ -44,9 +57,13 @@ async function handleFile(file: File) {
           @file="handleFile"
         />
 
-        <p v-if="uploadedFile && !loading" class="mt-3 text-xs text-muted-foreground">
-          Selected: <span class="font-medium text-foreground">{{ uploadedFile.name }}</span>
-        </p>
+        <div v-if="uploadedFile" class="mt-4 space-y-3">
+          <p class="text-xs text-muted-foreground">Selected: <span class="font-medium text-foreground">{{ uploadedFile.name }}</span></p>
+          <input v-model="title" placeholder="Case study title" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          <input v-model="client" placeholder="Client name" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          <input v-model="industry" placeholder="Industry (optional)" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+          <Button :disabled="loading || !title.trim() || !client.trim()" @click="handleSubmit">{{ loading ? 'Indexing…' : 'Upload & Index' }}</Button>
+        </div>
 
         <p v-if="error" class="mt-3 text-sm text-destructive">{{ error }}</p>
       </div>

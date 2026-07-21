@@ -12,6 +12,19 @@ import { generateSlideEmbedding } from '../embeddings/generateEmbedding'
 
 export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const MAX_STORAGE_FILE_NAME_LENGTH = 180
+const EMBEDDING_CONCURRENCY = 4
+
+async function mapWithConcurrency<T, R>(items: T[], mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  await Promise.all(Array.from({ length: Math.min(EMBEDDING_CONCURRENCY, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex++
+      results[index] = await mapper(items[index]!)
+    }
+  }))
+  return results
+}
 
 export function storageFileName(fileName: string): string {
   const basename = fileName.replace(/\\/g, '/').split('/').pop() || 'upload.pptx'
@@ -55,6 +68,9 @@ export async function indexCaseStudy(
   input: IndexCaseStudyInput,
   deps: IndexCaseStudyDependencies = defaultDependencies,
 ): Promise<CaseStudy> {
+  // Validate the Office package and collect deterministic slide text before any
+  // database/storage write. Invalid presentations must not leave a partial row.
+  const extracted = await deps.extractSlides(input.buffer)
   const saved = await deps.insertCaseStudy({
     id: '',
     title: input.title,
@@ -72,8 +88,7 @@ export async function indexCaseStudy(
     const storagePath = `${saved.id}/${storageFileName(input.fileName)}`
     await deps.uploadFile('case-studies', storagePath, input.buffer, PPTX_MIME)
     await deps.updateFilePath(saved.id, storagePath)
-    const extracted = await deps.extractSlides(input.buffer)
-    const slides = await Promise.all(extracted.map(async (slide) => {
+    const slides = await mapWithConcurrency(extracted, async (slide) => {
       let embedding: number[] | null = null
       try {
         embedding = await deps.generateSlideEmbedding({ title: slide.title, content: slide.content })
@@ -81,7 +96,7 @@ export async function indexCaseStudy(
         console.error(`Failed to embed case study slide ${slide.slideNumber}`, error)
       }
       return { slideIndex: slide.slideNumber, title: slide.title, content: slide.content, embedding }
-    }))
+    })
     await deps.insertSlides(saved.id, slides)
     await deps.updateStatus(saved.id, 'indexed')
     const completed = await deps.getCaseStudy(saved.id)

@@ -1,3 +1,44 @@
+import type { ChatResponseSchema } from './provider'
+
+export const RFP_ANALYSIS_RESPONSE_SCHEMA: ChatResponseSchema = {
+  name: 'rfp_analysis',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false,
+    properties: {
+      clientName: { type: 'string' }, industry: { type: 'string' },
+      businessProblems: { type: 'array', items: { type: 'string' } },
+      requiredCapabilities: { type: 'array', items: { type: 'string' } },
+      technicalRequirements: { type: 'array', items: { type: 'string' } },
+      evaluationCriteria: { type: 'array', items: { type: 'string' } },
+      summary: { type: 'string' }, searchKeywords: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['clientName', 'industry', 'businessProblems', 'requiredCapabilities', 'technicalRequirements', 'evaluationCriteria', 'summary', 'searchKeywords'],
+  },
+}
+
+export const RECOMMENDATION_EXPLANATION_RESPONSE_SCHEMA: ChatResponseSchema = {
+  name: 'recommendation_explanations',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false,
+    properties: {
+      explanations: {
+        type: 'array',
+        items: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            caseStudyId: { type: 'string' }, reason: { type: 'string' },
+            matchedRequirements: { type: 'array', items: { type: 'string' } }, confidence: { type: 'number' },
+          },
+          required: ['caseStudyId', 'reason', 'matchedRequirements', 'confidence'],
+        },
+      },
+    },
+    required: ['explanations'],
+  },
+}
+
 export const SYSTEM_PROMPT_RFP_ANALYST = `
 You are an expert presales consultant and RFP analyst.
 Extract structured requirements from RFP documents and identify key themes.

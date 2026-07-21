@@ -31,5 +31,9 @@ defineProps<Props>()
     <p class="mt-3 text-xs text-muted-foreground">
       {{ caseStudy.slides.length }} slides &middot; Uploaded {{ new Date(caseStudy.uploadedAt).toLocaleDateString() }}
     </p>
+    <p v-if="caseStudy.embeddingStatus" class="mt-1 text-xs" :class="caseStudy.embeddingStatus === 'complete' ? 'text-green-700' : 'text-amber-700'">
+      Embeddings: {{ caseStudy.embeddedSlideCount ?? 0 }}/{{ caseStudy.totalSlideCount ?? caseStudy.slides.length }}
+      <span v-if="caseStudy.embeddingStatus !== 'complete'">· {{ caseStudy.embeddingStatus }}</span>
+    </p>
   </div>
 </template>

@@ -14,7 +14,7 @@ describe('LMStudioProvider', () => {
     }), { status: 200 }))
     const provider = new LMStudioProvider({ fetcher })
 
-    await expect(provider.complete('Analyze this', 'Be precise')).resolves.toBe('structured answer')
+    await expect(provider.complete('Analyze this', { systemPrompt: 'Be precise' })).resolves.toBe('structured answer')
     expect(fetcher).toHaveBeenCalledWith('http://localhost:1234/v1/chat/completions', expect.objectContaining({ method: 'POST' }))
     const body = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)
     expect(body).toMatchObject({
@@ -25,6 +25,29 @@ describe('LMStudioProvider', () => {
       ],
       stream: false,
     })
+  })
+
+  it('uses the response schema supplied by the caller instead of the RFP schema', async () => {
+    vi.stubEnv('LMSTUDIO_BASE_URL', 'http://localhost:1234')
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ message: { content: '{"explanations":[]}' } }],
+    }), { status: 200 }))
+    const provider = new LMStudioProvider({ fetcher })
+    const explanationSchema = {
+      name: 'recommendation_explanations',
+      strict: true,
+      schema: { type: 'object', properties: { explanations: { type: 'array' } }, required: ['explanations'] },
+    }
+
+    await provider.complete('Explain candidates', {
+      systemPrompt: 'Explain only supplied evidence.',
+      responseSchema: explanationSchema,
+      timeoutMs: 60_000,
+    } as any)
+
+    const body = JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)
+    expect(body.messages[0]).toEqual({ role: 'system', content: 'Explain only supplied evidence.' })
+    expect(body.response_format.json_schema).toEqual(explanationSchema)
   })
 
   it('uses the configured embedding model for embeddings', async () => {

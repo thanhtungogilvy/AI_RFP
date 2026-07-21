@@ -5,11 +5,21 @@ const rfpId = route.params.id as string
 
 const { recommendations, analysis, loading, error, fetch, toggleSelection, selectedIds } = useRecommendations(rfpId)
 const { generate, loading: generating, error: genError } = useProposalGeneration()
+const pdfAvailable = ref(false)
+const includePdf = ref(false)
 
-onMounted(fetch)
+onMounted(async () => {
+  await fetch()
+  try {
+    const capabilities = await $fetch<{ pdfExport: boolean }>('/api/capabilities')
+    pdfAvailable.value = capabilities.pdfExport
+  } catch {
+    pdfAvailable.value = false
+  }
+})
 
 async function handleGenerate() {
-  const proposal = await generate(rfpId, selectedIds.value)
+  const proposal = await generate(rfpId, selectedIds.value, includePdf.value)
   if (proposal) {
     router.push(`/proposals/${proposal.id}`)
   }
@@ -32,6 +42,9 @@ async function handleGenerate() {
         >
           {{ generating ? 'Generating...' : `Generate Proposal (${selectedIds.length} selected)` }}
         </Button>
+        <label v-if="pdfAvailable" class="flex items-center gap-1 text-xs text-muted-foreground">
+          <input v-model="includePdf" type="checkbox" /> Also generate PDF
+        </label>
       </template>
     </PageHeader>
 

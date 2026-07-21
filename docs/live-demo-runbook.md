@@ -8,21 +8,20 @@
 4. Select at least one case study and click **Generate Proposal**.
 5. Click **Download PPTX** on the result page.
 
-Demo cards on empty list pages only explain the UI; they do not create an RFP analysis or support the recommendation endpoint.
+Empty lists require real uploads; no demo record participates in the production workflow.
 
 ## Presenter recovery
 
 | Symptom | Explain / do |
 |---|---|
-| `RFP analysis not found` | You opened a UI-only demo RFP. Return to RFPs and use a real analyzed RFP. |
-| `AI explanation unavailable` | Start/load the LM Studio chat model, then refresh recommendations. |
+| Fallback explanation warning | Start/load the LM Studio chat model, then refresh recommendations; evidence cards remain usable meanwhile. |
 | No vector-like recommendation | Confirm the embedding model is loaded and slides have non-null embeddings; keyword fallback may still return matches. |
 | No recommendations | Select an RFP with requirements related to an indexed case study, or upload an appropriate deck. |
 | Proposal still processing/failed | Wait for completion; if failed, return to recommendations, confirm at least one selected case study, and generate again. |
 
 ## Prerequisites
 
-- Supabase migrations `001`, `002`, and `003` have been applied.
+- Supabase migrations `001`, `002`, `003`, and `004` have been applied.
 - Private buckets `case-studies`, `rfps`, and `proposals` exist.
 - `.env` contains Supabase credentials, `LMSTUDIO_CHAT_MODEL`, and `LMSTUDIO_EMBEDDING_MODEL=gpustack/bge-m3-GGUF`.
 - LM Studio has both the chat and embedding models loaded.
@@ -38,6 +37,6 @@ Demo cards on empty list pages only explain the UI; they do not create an RFP an
 ## Failure messages
 
 - `Supabase vector search is not configured`: check Supabase credentials and migration `003`.
-- `AI explanation unavailable`: load the configured LM Studio chat model and retry.
+- Fallback explanation warning: load the configured LM Studio chat model and refresh if AI wording is required.
 - A slide can be indexed with `embedding = null` if embedding generation fails; recommendation requests use keyword fallback if semantic search is unavailable.
 - Demo cards on empty list pages are UI-only. They are not a substitute for the real upload-to-proposal flow.

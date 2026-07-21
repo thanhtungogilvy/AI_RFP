@@ -80,6 +80,9 @@ export interface Database {
           pptx_url: string | null
           pptx_path: string | null
           pdf_url: string | null
+          pdf_path: string | null
+          pdf_status: 'not_requested' | 'completed' | 'error'
+          pdf_error_message: string | null
           error_message: string | null
           created_at: string
           completed_at: string | null

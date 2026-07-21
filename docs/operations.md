@@ -28,6 +28,7 @@ Run these SQL files in order in the Supabase SQL editor:
 1. `supabase/migrations/001_initial_schema.sql`
 2. `supabase/migrations/002_rfp_analysis.sql`
 3. `supabase/migrations/003_case_study_slide_embeddings.sql`
+4. `supabase/migrations/004_production_reliability.sql`
 
 The final migration enables pgvector, adds `case_study_slides.embedding vector(1024)`, creates a cosine HNSW index, and creates `match_case_study_slides`.
 
@@ -35,9 +36,11 @@ The final migration enables pgvector, adds `case_study_slides.embedding vector(1
 
 Uploading a case-study PPTX extracts text from each slide and asks LM Studio for an embedding. A failed slide embedding is stored as `NULL`; the slide text remains indexed. Recommendation requests embed the RFP summary plus search keywords, search the RPC, group matching slides, then ask the chat model for a strict JSON explanation.
 
-If embedding or vector search fails, keyword matching is used. If the chat model is unavailable or returns invalid explanation JSON, the endpoint returns `503 AI explanation unavailable`.
+If embedding or vector search fails, keyword matching is used. If the chat model is unavailable or returns invalid explanation JSON after one retry, the UI shows deterministic evidence labelled as a fallback.
 
 Existing slides without embeddings need re-indexing before they participate in vector search.
+
+To backfill existing slide vectors without re-uploading decks, load the required environment variables and run `npm run backfill:embeddings`. The script processes 25 missing vectors at a time with concurrency 4 and exits safely when a full batch fails.
 
 ## Verification
 
@@ -72,8 +75,8 @@ where embedding is not null;
 |---|---|---|
 | `POST /api/case-studies/upload` | Stores PPTX, extracts slides, writes embeddings, marks indexed. | Requires Supabase; invalid/text-free PPTX returns 400. Individual embedding failures leave the slide row with `NULL` embedding. |
 | `POST /api/rfps/[id]/analyze` | Stores strict RFP analysis. | LM Studio unavailable returns 503 and marks RFP error. |
-| `GET /api/rfps/[id]/recommendations` | Returns score, reason, requirements, excerpts, and confidence. | Embedding/vector failure uses keyword fallback. Explanation failure returns `503 AI explanation unavailable`. |
-| `POST /api/proposals/generate` | Produces a PPTX proposal. | Check proposal status/error message and retry after correcting inputs. |
+| `GET /api/rfps/[id]/recommendations` | Returns score, reason, requirements, excerpts, and confidence. | Embedding/vector failure uses keyword fallback; failed explanations are visibly labelled fallback evidence. |
+| `POST /api/proposals/generate` | Produces a durable PPTX proposal; optionally PDF. | Requires an analyzed RFP and at least one indexed case study. |
 
 ## Demo data policy
 
@@ -83,7 +86,7 @@ For an end-to-end demo, use one real indexed case study plus one real analyzed R
 
 ## Pre-demo checklist
 
-- [ ] Run all three migrations in order.
+- [ ] Run all four migrations in order.
 - [ ] Confirm all three private Storage buckets exist.
 - [ ] Start LM Studio and load both configured models.
 - [ ] Run the `embedded_slides` query and confirm at least one non-null embedding.

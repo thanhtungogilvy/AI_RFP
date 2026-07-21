@@ -89,6 +89,7 @@ In Supabase SQL editor, execute these migrations in order:
 - `supabase/migrations/001_initial_schema.sql`
 - `supabase/migrations/002_rfp_analysis.sql`
 - `supabase/migrations/003_case_study_slide_embeddings.sql`
+- `supabase/migrations/004_production_reliability.sql`
 - Creates 4 tables: `case_studies`, `case_study_slides`, `rfp_documents`, `proposals`
 - Enables RLS on all tables (service role bypasses)
 - Sets up foreign keys, indexes, check constraints
@@ -104,7 +105,7 @@ In Supabase Storage, create 3 **private** buckets (public access must remain dis
 npm run dev
 ```
 
-All configured data now persists to Supabase automatically. Listing and search routes can fall back to mock data when Supabase is unconfigured. Case-study PPTX upload does not use a mock fallback: it requires both `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` and returns `503` without them.
+Production data requires Supabase. Listing, upload, analysis, and proposal routes return a clear configuration error rather than fabricated mock records when it is unavailable.
 
 Case-study uploads are indexed synchronously in the upload request. The server stores the original PPTX in the `case-studies` bucket, extracts text from its slide XML with JSZip and fast-xml-parser, writes one-based slide rows to `case_study_slides`, and returns only after the case study reaches `indexed`. Invalid, malformed, or text-free decks are rejected; processing failures mark the case study as `error`.
 
@@ -122,7 +123,8 @@ Case-study uploads are indexed synchronously in the upload request. The server s
 | POST | `/api/rfps/[id]/analyze` | Analyze persisted RFP text with LM Studio |
 | GET | `/api/rfps/[id]/recommendations` | pgvector recommendations with AI explanations |
 | **Proposals** | | |
-| POST | `/api/proposals/generate` | Generate PPTX proposal deck |
+| GET | `/api/capabilities` | Read non-secret service and PDF capabilities |
+| POST | `/api/proposals/generate` | Generate durable PPTX proposal deck, optionally PDF |
 | GET | `/api/proposals/[id]` | Get proposal metadata |
 | GET | `/api/proposals/[id]/download` | Download proposal PPTX |
 
@@ -136,16 +138,9 @@ Case-study uploads are indexed synchronously in the upload request. The server s
 
 Use [Live Demo Runbook](docs/live-demo-runbook.md) for presenter recovery steps.
 
-## Demo Data
+## Production flow
 
-Out of the box (no Supabase required):
-- **3 Case Studies**: Vietcombank, Masan Group, VinGroup
-- **2 RFPs**: ABC Bank, RetailCo Vietnam
-- Empty Case Study and RFP lists show UI-only demo cards to explain the flow.
-
-### Demo limitations
-
-UI demo RFP cards are not persisted in Supabase, so they cannot open the real recommendations endpoint. For a complete live demo, upload one real case study and one text-bearing RFP after configuring Supabase and LM Studio. A guided end-to-end local demo remains future work.
+Use one real indexed case study and one real analyzed RFP for the full flow. Generated proposal artifacts are stored in the private `proposals` bucket and remain downloadable after restart.
 
 ## AI and Semantic Search
 

@@ -25,3 +25,5 @@ logs
 .superpowers/
 .generated/
 .worktrees/
+playwright-report/
+test-results/

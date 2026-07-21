@@ -8,7 +8,9 @@ import { buttonVariants } from "./buttonVariants"
 
 type ButtonVariants = VariantProps<typeof buttonVariants>
 
-interface Props extends /* @vue-ignore */ PrimitiveProps {
+interface Props {
+  as?: PrimitiveProps['as']
+  asChild?: PrimitiveProps['asChild']
   variant?: ButtonVariants["variant"]
   size?: ButtonVariants["size"]
   class?: HTMLAttributes["class"]
@@ -16,13 +18,14 @@ interface Props extends /* @vue-ignore */ PrimitiveProps {
 
 const props = withDefaults(defineProps<Props>(), {
   as: "button",
+  asChild: false,
 })
 </script>
 
 <template>
   <Primitive
-    :as="as"
-    :as-child="asChild"
+    :as="props.as"
+    :as-child="props.asChild"
     :class="cn(buttonVariants({ variant, size }), props.class)"
   >
     <slot />

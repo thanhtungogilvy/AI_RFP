@@ -1,7 +1,14 @@
 <script setup lang="ts">
-const { rfps, loading, fetchAll } = useRfps()
-import { demoRfps } from '~/utils/demoData'
-const displayRfps = computed(() => rfps.value.length ? rfps.value : demoRfps)
+const { rfps, loading, error, fetchAll, analyze } = useRfps()
+
+async function handleAnalyze(id: string) {
+  try {
+    await analyze(id)
+    await fetchAll()
+  } catch {
+    // The composable exposes the error state.
+  }
+}
 
 onMounted(fetchAll)
 </script>
@@ -22,11 +29,12 @@ onMounted(fetchAll)
     </div>
 
     <!-- Empty -->
-    <div v-else-if="!rfps.length" class="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">Demo RFP shown. <NuxtLink class="font-medium underline" to="/rfps/upload">Upload RFP</NuxtLink> to start a real analysis.</div>
+    <div v-else-if="error" class="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{{ error }}</div>
+    <EmptyState v-else-if="!rfps.length" title="No RFP documents" description="Upload a PDF or DOCX RFP to start analysis." />
 
     <!-- Grid -->
-    <div v-if="displayRfps.length" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <RfpCard v-for="rfp in displayRfps" :key="rfp.id" :rfp="rfp" />
+    <div v-if="rfps.length" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <RfpCard v-for="rfp in rfps" :key="rfp.id" :rfp="rfp" @analyze="handleAnalyze" />
     </div>
   </AppShell>
 </template>

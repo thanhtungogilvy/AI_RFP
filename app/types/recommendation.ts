@@ -17,5 +17,7 @@ export interface CaseStudyRecommendation {
   reasons: string[]
   matchedRequirements: string[]
   matchedSlideExcerpts: MatchedSlideExcerpt[]
+  explanationSource: 'ai' | 'fallback'
+  explanationWarning?: string
   selected: boolean
 }

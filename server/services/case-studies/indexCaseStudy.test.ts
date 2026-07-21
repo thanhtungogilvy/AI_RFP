@@ -101,14 +101,14 @@ describe('indexCaseStudy', () => {
     expect(objectName).toMatch(/\.pptx$/)
   })
 
-  it('marks the record as error and preserves extraction failures', async () => {
+  it('validates the PPTX package before persisting a case-study record', async () => {
     const deps = makeDeps()
     const failure = new Error('extraction failed')
     deps.extractSlides.mockRejectedValue(failure)
 
     await expect(indexCaseStudy(input, deps)).rejects.toBe(failure)
-    expect(deps.updateStatus).toHaveBeenCalledWith(saved.id, 'error')
-    expect(deps.updateStatus).not.toHaveBeenCalledWith(saved.id, 'indexed')
+    expect(deps.insertCaseStudy).not.toHaveBeenCalled()
+    expect(deps.updateStatus).not.toHaveBeenCalled()
   })
 
   it('marks the record as error and preserves slide insertion failures', async () => {
@@ -130,16 +130,4 @@ describe('indexCaseStudy', () => {
     expect(deps.updateStatus).toHaveBeenNthCalledWith(2, saved.id, 'error')
   })
 
-  it('preserves extraction failures when marking the record as error also fails', async () => {
-    const deps = makeDeps()
-    const failure = new Error('extraction failed')
-    deps.extractSlides.mockRejectedValue(failure)
-    deps.updateStatus.mockRejectedValue(new Error('status update failed'))
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-
-    await expect(indexCaseStudy(input, deps)).rejects.toBe(failure)
-    expect(deps.updateStatus).toHaveBeenCalledWith(saved.id, 'error')
-    expect(consoleError).toHaveBeenCalled()
-    consoleError.mockRestore()
-  })
 })

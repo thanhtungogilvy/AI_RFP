@@ -6,7 +6,7 @@ const { getSupabaseClient } = vi.hoisted(() => ({
 
 vi.mock('./client', () => ({ getSupabaseClient }))
 
-import { dbGetCaseStudyById, dbInsertCaseStudy, dbInsertCaseStudySlides, dbUpdateCaseStudyFilePath, dbUpdateCaseStudyStatus } from './db'
+import { dbGetCaseStudyById, dbInsertCaseStudy, dbInsertCaseStudySlides, dbSearchCaseStudies, dbUpdateCaseStudyFilePath, dbUpdateCaseStudyStatus } from './db'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -75,5 +75,21 @@ describe('dbInsertCaseStudySlides', () => {
       statusCode: 500,
       statusMessage: 'insert failed',
     })
+  })
+})
+
+describe('dbSearchCaseStudies', () => {
+  it('uses the server-side slide-aware search RPC before loading case studies', async () => {
+    const order = vi.fn().mockResolvedValue({ data: [], error: null })
+    const inFilter = vi.fn(() => ({ order }))
+    const select = vi.fn(() => ({ in: inFilter }))
+    const from = vi.fn(() => ({ select }))
+    const rpc = vi.fn().mockResolvedValue({ data: [{ case_study_id: 'case-study-1' }], error: null })
+    getSupabaseClient.mockReturnValue({ rpc, from })
+
+    await expect(dbSearchCaseStudies('zero downtime')).resolves.toEqual([])
+
+    expect(rpc).toHaveBeenCalledWith('search_case_studies', { search_text: 'zero downtime' })
+    expect(inFilter).toHaveBeenCalledWith('id', ['case-study-1'])
   })
 })

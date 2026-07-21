@@ -49,7 +49,7 @@ async function handleSubmit() {
 
       <template v-else>
         <FileDropzone
-          accept=".pdf,.docx,.doc"
+          accept=".pdf,.docx"
           label="Drop your RFP document here or click to browse"
           hint="PDF or DOCX · Max 50MB"
           :loading="loading"

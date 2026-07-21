@@ -6,6 +6,7 @@ interface Props {
 }
 
 defineProps<Props>()
+defineEmits<{ (e: 'analyze', id: string): void }>()
 </script>
 
 <template>
@@ -28,6 +29,9 @@ defineProps<Props>()
       >
         View Recommendations
       </NuxtLink>
+      <Button v-else-if="rfp.status === 'uploaded' || rfp.status === 'error'" size="sm" @click="$emit('analyze', rfp.id)">
+        {{ rfp.status === 'error' ? 'Retry analysis' : 'Analyze RFP' }}
+      </Button>
       <span v-else class="text-xs text-muted-foreground">Uploaded {{ new Date(rfp.uploadedAt).toLocaleDateString() }}</span>
     </div>
   </div>
