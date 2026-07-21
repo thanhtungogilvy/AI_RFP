@@ -6,6 +6,7 @@ type Fetcher = typeof fetch
 interface LMStudioProviderOptions {
   fetcher?: Fetcher
   environment?: Partial<ServerEnvironment>
+  wait?: (ms: number) => Promise<void>
 }
 
 interface ChatCompletionResponse {
@@ -28,13 +29,15 @@ export class LMStudioProvider implements AIProvider {
   private readonly baseUrl: string
   private readonly chatModel: string
   private readonly embeddingModel: string
+  private readonly wait: (ms: number) => Promise<void>
 
-  constructor({ fetcher = fetch, environment }: LMStudioProviderOptions = {}) {
+  constructor({ fetcher = fetch, environment, wait }: LMStudioProviderOptions = {}) {
     const configured = { ...getServerEnvironment(), ...environment }
     this.fetcher = fetcher
     this.baseUrl = configured.lmStudioBaseUrl.replace(/\/+$/, '')
     this.chatModel = configured.lmStudioChatModel ?? 'local-model'
     this.embeddingModel = configured.lmStudioEmbeddingModel ?? 'local-model'
+    this.wait = wait ?? (ms => new Promise(resolve => setTimeout(resolve, ms)))
   }
 
   async complete(prompt: string, options: CompletionOptions = {}): Promise<string> {
@@ -67,28 +70,46 @@ export class LMStudioProvider implements AIProvider {
   }
 
   private async request<T>(path: string, body: Record<string, unknown>, timeoutMs = 90_000): Promise<T> {
-    let response: Response
-    try {
-      response = await this.fetcher(`${this.baseUrl}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
-      })
-    } catch (error) {
-      if (error instanceof TypeError || (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError'))) {
-        throw new LMStudioUnavailableError(`LM Studio is unavailable or did not respond within ${Math.ceil(timeoutMs / 1000)} seconds.`)
+    const maxAttempts = 5
+    let lastUnavailableError: LMStudioUnavailableError | null = null
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      let response: Response
+      try {
+        response = await this.fetcher(`${this.baseUrl}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+      } catch (error) {
+        if (error instanceof TypeError || (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError'))) {
+          lastUnavailableError = new LMStudioUnavailableError(`LM Studio is unavailable or did not respond within ${Math.ceil(timeoutMs / 1000)} seconds.`)
+          if (attempt < maxAttempts) {
+            await this.wait(attempt * 1000)
+            continue
+          }
+          throw lastUnavailableError
+        }
+        throw error
       }
-      throw error
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '')
+        if (response.status >= 500 || response.status === 404) {
+          lastUnavailableError = new LMStudioUnavailableError(`LM Studio is unavailable or has no compatible model loaded (${response.status}).`)
+          if (attempt < maxAttempts) {
+            await this.wait(attempt * 1000)
+            continue
+          }
+          throw lastUnavailableError
+        }
+        throw new Error(`LM Studio request failed (${response.status})${detail ? `: ${detail}` : ''}`)
+      }
+
+      return response.json() as Promise<T>
     }
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => '')
-      if (response.status >= 500 || response.status === 404) {
-        throw new LMStudioUnavailableError(`LM Studio is unavailable or has no compatible model loaded (${response.status}).`)
-      }
-      throw new Error(`LM Studio request failed (${response.status})${detail ? `: ${detail}` : ''}`)
-    }
-    return response.json() as Promise<T>
+    throw lastUnavailableError ?? new LMStudioUnavailableError()
   }
 }

@@ -24,6 +24,8 @@ function deps() {
     getRfpInput: vi.fn().mockResolvedValue({ text: 'RFP body' }),
     analyze: vi.fn().mockResolvedValue(analysis),
     saveAnalysis: vi.fn().mockResolvedValue(undefined),
+    saveEmbedding: vi.fn().mockResolvedValue(undefined),
+    generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
     updateStatus: vi.fn().mockResolvedValue(undefined),
   }
 }
@@ -36,6 +38,18 @@ describe('handleRfpAnalysis', () => {
     await expect(handleRfpAnalysis(event, testDeps)).resolves.toEqual({ analysis })
     expect(testDeps.analyze).toHaveBeenCalledWith('RFP body', 'rfp-123')
     expect(testDeps.saveAnalysis).toHaveBeenCalledWith('rfp-123', analysis)
+    expect(testDeps.generateEmbedding).toHaveBeenCalledWith('RFP body')
+    expect(testDeps.saveEmbedding).toHaveBeenCalledWith('rfp-123', [0.1, 0.2, 0.3])
+    expect(testDeps.updateStatus).toHaveBeenCalledWith('rfp-123', 'analyzed')
+  })
+
+  it('still completes analysis when embedding persistence fails', async () => {
+    const testDeps = deps()
+    testDeps.generateEmbedding.mockRejectedValue(new Error('embedding service unavailable'))
+    const event = { context: { params: { id: 'rfp-123' } } } as any
+
+    await expect(handleRfpAnalysis(event, testDeps)).resolves.toEqual({ analysis })
+    expect(testDeps.saveEmbedding).not.toHaveBeenCalled()
     expect(testDeps.updateStatus).toHaveBeenCalledWith('rfp-123', 'analyzed')
   })
 

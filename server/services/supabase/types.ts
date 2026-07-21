@@ -59,6 +59,7 @@ export interface Database {
           file_path: string | null
           content: string
           analysis: unknown | null
+          embedding: number[] | null
           status: 'uploaded' | 'analyzing' | 'analyzed' | 'error'
           uploaded_at: string
           created_at: string

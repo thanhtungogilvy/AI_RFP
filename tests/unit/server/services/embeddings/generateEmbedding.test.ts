@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildRecommendationQuery,
   EMBEDDING_DIMENSIONS,
+  generateDocumentEmbedding,
   generateEmbedding,
   generateSlideEmbedding,
 } from '#server/services/embeddings/generateEmbedding'
@@ -29,6 +30,16 @@ describe('embedding service', () => {
       summary: ' Cloud migration ',
       searchKeywords: ['banking', 'cloud migration', 'banking'],
     })).toBe('Cloud migration\nbanking\ncloud migration')
+  })
+
+  it('pools multiple chunk embeddings into a single document vector', async () => {
+    const ai = provider()
+
+    const text = 'a'.repeat(12_001)
+
+    await expect(generateDocumentEmbedding(text, ai)).resolves.toHaveLength(EMBEDDING_DIMENSIONS)
+    expect(ai.embed).toHaveBeenNthCalledWith(1, 'a'.repeat(12_000))
+    expect(ai.embed).toHaveBeenNthCalledWith(2, 'a')
   })
 
   it.each([[1, 2], Array(EMBEDDING_DIMENSIONS).fill(Number.NaN)])('rejects invalid embeddings', async (embedding) => {

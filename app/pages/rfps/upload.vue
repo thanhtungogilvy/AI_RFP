@@ -8,6 +8,14 @@ const client = ref('')
 const industry = ref('')
 const uploadSuccess = ref(false)
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toFixed(1)} KB`
+  const mb = kb / 1024
+  return `${mb.toFixed(1)} MB`
+}
+
 const canSubmit = computed(() => !!uploadedFile.value && !!title.value && !!client.value)
 
 async function handleFile(file: File) {
@@ -55,6 +63,12 @@ async function handleSubmit() {
           :loading="loading"
           @file="handleFile"
         />
+
+        <div v-if="uploadedFile" class="rounded-lg border border-border bg-card p-3 text-sm">
+          <p class="text-xs text-muted-foreground">Selected file</p>
+          <p class="font-medium text-foreground">{{ uploadedFile.name }}</p>
+          <p class="text-xs text-muted-foreground">{{ formatFileSize(uploadedFile.size) }}</p>
+        </div>
 
         <div class="space-y-4">
           <div>

@@ -257,8 +257,26 @@ export async function dbGetRfpById(id: string): Promise<RfpDocument | null> {
   return mapRfp(data as RfpRow)
 }
 
+export interface RfpDebugRecord extends RfpRow {
+  embedding: number[] | null
+}
+
+export async function dbGetRfpDebugById(id: string): Promise<RfpDebugRecord | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+
+  const { data, error } = await (sb as any)
+    .from('rfp_documents')
+    .select('id,title,client,industry,deadline,file_name,file_path,content,analysis,embedding,status,uploaded_at,created_at')
+    .eq('id', id)
+    .single()
+
+  if (error || !data) return null
+  return data as RfpDebugRecord
+}
+
 export async function dbInsertRfp(
-  fields: Omit<RfpDocument, 'id'> & { id?: string; filePath?: string; content?: string }
+  fields: Omit<RfpDocument, 'id'> & { id?: string; filePath?: string; content?: string; embedding?: number[] | null }
 ): Promise<RfpDocument | null> {
   const sb = getSupabaseClient()
   if (!sb) return null
@@ -276,6 +294,7 @@ export async function dbInsertRfp(
       uploaded_at: fields.uploadedAt,
       file_path:   fields.filePath ?? null,
       content:     fields.content ?? '',
+      embedding:   fields.embedding ?? null,
     } as any)
     .select('*')
     .single()
@@ -297,6 +316,13 @@ export async function dbSaveRfpAnalysis(id: string, analysis: RfpAnalysis): Prom
   if (!sb) return
   const { error } = await (sb as any).from('rfp_documents').update({ analysis }).eq('id', id)
   if (error) throwDatabaseFailure('save_rfp_analysis', error)
+}
+
+export async function dbUpdateRfpEmbedding(id: string, embedding: number[]): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  const { error } = await (sb as any).from('rfp_documents').update({ embedding }).eq('id', id)
+  if (error) throwDatabaseFailure('update_rfp_embedding', error)
 }
 
 export async function dbGetRfpAnalysis(id: string): Promise<RfpAnalysis | null> {

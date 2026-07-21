@@ -66,9 +66,29 @@ describe('LMStudioProvider', () => {
   it('returns a user-safe error when LM Studio is unavailable', async () => {
     const fetcher = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
 
-    await expect(new LMStudioProvider({ fetcher }).complete('Analyze')).rejects.toMatchObject({
+    await expect(new LMStudioProvider({ fetcher, wait: async () => {} }).complete('Analyze')).rejects.toMatchObject({
       name: LMStudioUnavailableError.name,
       message: expect.stringContaining('LM Studio is unavailable'),
     })
+  })
+
+  it('retries transient LM Studio 500 errors before succeeding', async () => {
+    vi.stubEnv('LMSTUDIO_BASE_URL', 'http://localhost:1234')
+    const waitCalls: number[] = []
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response('warming up', { status: 500 }))
+      .mockResolvedValueOnce(new Response('still loading', { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'ready' } }],
+      }), { status: 200 }))
+
+    const provider = new LMStudioProvider({
+      fetcher,
+      wait: async (ms) => { waitCalls.push(ms) },
+    })
+
+    await expect(provider.complete('Analyze')).resolves.toBe('ready')
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    expect(waitCalls).toEqual([1000, 2000])
   })
 })

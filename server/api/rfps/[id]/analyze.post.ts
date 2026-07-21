@@ -1,8 +1,10 @@
 import { LMStudioUnavailableError } from '../../../services/ai/lmStudio'
+import { generateDocumentEmbedding } from '../../../services/embeddings/generateEmbedding'
 import { analyzeRfp } from '../../../services/rfp/analyzeRfp'
-import { dbGetRfpAnalysisInput, dbSaveRfpAnalysis, dbUpdateRfpStatus } from '../../../services/supabase/db'
+import { dbGetRfpAnalysisInput, dbSaveRfpAnalysis, dbUpdateRfpEmbedding, dbUpdateRfpStatus } from '../../../services/supabase/db'
 import { getEnvironmentCapabilities } from '../../../utils/environment'
 import { dependencyUnavailable } from '../../../utils/errors'
+import { logError } from '../../../utils/logger'
 import { ensureRequestId } from '../../../utils/request-id'
 
 interface Dependencies {
@@ -10,6 +12,8 @@ interface Dependencies {
   getRfpInput: typeof dbGetRfpAnalysisInput
   analyze: typeof analyzeRfp
   saveAnalysis: typeof dbSaveRfpAnalysis
+  saveEmbedding: typeof dbUpdateRfpEmbedding
+  generateEmbedding: typeof generateDocumentEmbedding
   updateStatus: typeof dbUpdateRfpStatus
 }
 
@@ -18,6 +22,8 @@ const defaultDependencies: Dependencies = {
   getRfpInput: dbGetRfpAnalysisInput,
   analyze: analyzeRfp,
   saveAnalysis: dbSaveRfpAnalysis,
+  saveEmbedding: dbUpdateRfpEmbedding,
+  generateEmbedding: generateDocumentEmbedding,
   updateStatus: dbUpdateRfpStatus,
 }
 
@@ -33,6 +39,12 @@ export async function handleRfpAnalysis(event: Parameters<typeof getRouterParam>
   try {
     const analysis = await deps.analyze(input.text, rfpId)
     await deps.saveAnalysis(rfpId, analysis)
+    try {
+      const embedding = await deps.generateEmbedding(input.text)
+      await deps.saveEmbedding(rfpId, embedding)
+    } catch (error) {
+      logError('rfp_embedding_failed', error, { rfpId })
+    }
     await deps.updateStatus(rfpId, 'analyzed')
     return { analysis }
   } catch (error) {

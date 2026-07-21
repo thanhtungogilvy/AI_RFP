@@ -14,6 +14,7 @@ import {
   dbInsertCaseStudy,
   dbInsertCaseStudySlides,
   dbSearchCaseStudies,
+  dbUpdateRfpEmbedding,
   dbUpdateCaseStudyFilePath,
   dbUpdateCaseStudyStatus,
 } from '#server/services/supabase/db'
@@ -31,6 +32,7 @@ it('returns early from case-study write/read helpers when Supabase is unconfigur
   await expect(dbUpdateCaseStudyStatus('id', 'error')).resolves.toBeUndefined()
   await expect(dbUpdateCaseStudyFilePath('id', 'path')).resolves.toBeUndefined()
   await expect(dbInsertCaseStudySlides('id', [])).resolves.toBeUndefined()
+  await expect(dbUpdateRfpEmbedding('id', [0.1])).resolves.toBeUndefined()
   await expect(dbCountCaseStudiesIndexed()).resolves.toBeNull()
   await expect(dbCountRfpsAnalyzed()).resolves.toBeNull()
   await expect(dbCountProposalsGenerated()).resolves.toBeNull()

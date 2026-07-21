@@ -23,6 +23,12 @@ defineEmits<{ (e: 'analyze', id: string): void }>()
     </p>
     <div class="mt-4 flex items-center gap-2">
       <NuxtLink
+        :to="`/rfps/${rfp.id}/debug`"
+        class="inline-flex h-7 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-accent"
+      >
+        Debug
+      </NuxtLink>
+      <NuxtLink
         v-if="rfp.status === 'analyzed'"
         :to="`/rfps/${rfp.id}/recommendations`"
         class="inline-flex h-7 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
