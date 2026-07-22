@@ -1,24 +1,43 @@
 import type { RequirementRecommendation } from '~/types/recommendation'
 import type { RfpAnalysis } from '~/types/rfp'
+import { openSseStream } from '~/utils/sseClient'
 
 export const useRecommendations = (rfpId: string) => {
   const recommendations = ref<RequirementRecommendation[]>([])
   const analysis = ref<RfpAnalysis | null>(null)
   const error = ref<string | null>(null)
-  const actionState = createActionState(['fetching'] as const)
+  const loading = ref(false)
+  const progressStep = ref<string | null>(null)
+  const progressMessage = ref<string | null>(null)
 
-  const fetch = () => actionState.run('fetching', async () => {
+  const fetch = (options: { refresh?: boolean } = {}) => {
+    if (loading.value) return
+    loading.value = true
     error.value = null
-    try {
-      const data = await $fetch<{ analysis: RfpAnalysis; recommendations: RequirementRecommendation[] }>(
-        `/api/rfps/${rfpId}/recommendations`
-      )
-      analysis.value = data.analysis
-      recommendations.value = data.recommendations
-    } catch (caught: unknown) {
-      error.value = caught instanceof Error ? caught.message : 'Failed to fetch recommendations'
-    }
-  })
+    progressStep.value = null
+    progressMessage.value = null
+
+    const url = `/api/rfps/${rfpId}/recommendations${options.refresh ? '?refresh=true' : ''}`
+
+    openSseStream<{ analysis: RfpAnalysis; recommendations: RequirementRecommendation[] }>(url)
+      .onProgress((step, message) => {
+        progressStep.value = step
+        progressMessage.value = message
+      })
+      .onDone((data) => {
+        analysis.value = data.analysis
+        recommendations.value = data.recommendations
+        loading.value = false
+        progressStep.value = null
+        progressMessage.value = null
+      })
+      .onError((message) => {
+        error.value = message
+        loading.value = false
+        progressStep.value = null
+        progressMessage.value = null
+      })
+  }
 
   const toggleSelection = (id: string) => {
     const rec = recommendations.value.find((r) => r.id === id)
@@ -29,5 +48,5 @@ export const useRecommendations = (rfpId: string) => {
     recommendations.value.filter((r) => r.selected).map((r) => r.id)
   )
 
-  return { recommendations, analysis, loading: actionState.loading, fetching: actionState.isActive('fetching'), error, fetch, toggleSelection, selectedIds }
+  return { recommendations, analysis, loading, progressStep, progressMessage, error, fetch, toggleSelection, selectedIds }
 }

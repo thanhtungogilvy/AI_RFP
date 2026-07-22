@@ -25,12 +25,13 @@ export async function explainRecommendations(analysis: RfpAnalysis, recommendati
         raw = await provider.complete(buildRecommendationExplanationPrompt(requirements, JSON.stringify(payload)), {
           systemPrompt: SYSTEM_PROMPT_RECOMMENDATION_EXPLAINER,
           responseSchema: RECOMMENDATION_EXPLANATION_RESPONSE_SCHEMA,
-          timeoutMs: 60_000,
+          timeoutMs: 20_000,
         })
         lastError = undefined
         break
       } catch (error) {
         lastError = error
+        break
       }
     }
     if (lastError) throw lastError

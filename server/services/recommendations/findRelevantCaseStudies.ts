@@ -183,6 +183,8 @@ function keywordRecommendations(analysis: RfpAnalysis, caseStudies: CaseStudy[])
     .map((item, index) => ({ ...item, selected: index === 0 }))
 }
 
+export type RecommendationProgressCallback = (step: string, message: string) => void
+
 export interface RecommendationDependencies {
   generateEmbedding: typeof generateEmbedding
   matchSlides: typeof dbMatchCaseStudySlides
@@ -192,6 +194,7 @@ const defaultDependencies: RecommendationDependencies = { generateEmbedding, mat
 
 export async function findRelevantCaseStudies(
   analysis: RfpAnalysis, caseStudies: CaseStudy[], deps: RecommendationDependencies = defaultDependencies,
+  onProgress?: RecommendationProgressCallback,
 ): Promise<RequirementRecommendation[]> {
   let ranked: RequirementRecommendation[]
   const candidates = requirementCandidates(analysis)
@@ -199,17 +202,22 @@ export async function findRelevantCaseStudies(
     const query = buildRecommendationQuery(analysis)
     if (!query) ranked = keywordRecommendations(analysis, caseStudies)
     else {
-      const matches = await deps.matchSlides(await deps.generateEmbedding(query))
+      onProgress?.('embedding', 'Generating embeddings...')
+      const embedding = await deps.generateEmbedding(query)
+      onProgress?.('matching', 'Finding relevant case studies...')
+      const matches = await deps.matchSlides(embedding)
       if (!matches.length) return []
       ranked = recommendationFromMatches(analysis, candidates, matches)
     }
   } catch (error) {
     logError('recommendation_vector_fallback', error, { rfpId: analysis.rfpId, dependency: 'vector_search' })
+    onProgress?.('matching', 'Finding relevant case studies...')
     ranked = keywordRecommendations(analysis, caseStudies)
   }
 
   if (!ranked.length) return []
   try {
+    onProgress?.('explaining', 'Generating AI explanations...')
     const explanations = await deps.explain(analysis, ranked)
     const byId = new Map(explanations.map(item => [item.recommendationId, item]))
     return ranked.map(item => ({

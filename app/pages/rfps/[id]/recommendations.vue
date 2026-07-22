@@ -3,13 +3,19 @@ const route = useRoute()
 const router = useRouter()
 const rfpId = route.params.id as string
 
-const { recommendations, analysis, loading, error, fetch, toggleSelection, selectedIds } = useRecommendations(rfpId)
+const { recommendations, analysis, loading, progressStep, progressMessage, error, fetch, toggleSelection, selectedIds } = useRecommendations(rfpId)
 const { generate, loading: generating, error: genError } = useProposalGeneration()
 const pdfAvailable = ref(false)
 const includePdf = ref(false)
 
+const PROGRESS_STEPS = [
+  { id: 'embedding', label: 'Generating embeddings' },
+  { id: 'matching', label: 'Finding relevant case studies' },
+  { id: 'explaining', label: 'Generating AI explanations' },
+]
+
 onMounted(async () => {
-  await fetch()
+  fetch()
   try {
     const capabilities = await $fetch<{ pdfExport: boolean }>('/api/capabilities')
     pdfAvailable.value = capabilities.pdfExport
@@ -37,6 +43,14 @@ async function handleGenerate() {
           <Button variant="outline" size="sm">Back to RFPs</Button>
         </NuxtLink>
         <Button
+          variant="outline"
+          size="sm"
+          :disabled="loading"
+          @click="fetch({ refresh: true })"
+        >
+          Refresh
+        </Button>
+        <Button
           :disabled="!selectedIds.length || generating"
           @click="handleGenerate"
         >
@@ -48,12 +62,12 @@ async function handleGenerate() {
       </template>
     </PageHeader>
 
-    <div v-if="loading" class="space-y-4">
-      <div v-for="i in 3" :key="i" class="h-32 animate-pulse rounded-lg bg-muted" />
+    <div v-if="loading" class="max-w-sm">
+      <ProgressSteps :steps="PROGRESS_STEPS" :current-step="progressStep" />
     </div>
 
     <div v-else-if="error" class="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-      <span>{{ error }}</span><Button size="sm" variant="outline" @click="fetch">Retry recommendations</Button>
+      <span>{{ error }}</span><Button size="sm" variant="outline" @click="fetch()">Retry recommendations</Button>
     </div>
 
     <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-5">

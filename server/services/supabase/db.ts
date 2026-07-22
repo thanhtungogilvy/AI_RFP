@@ -6,6 +6,7 @@
 import type { CaseStudy, CaseStudySlide } from '~/types/case-study'
 import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
 import type { ProposalGeneration } from '~/types/proposal'
+import type { RequirementRecommendation } from '~/types/recommendation'
 import { getSupabaseClient } from './client'
 import type { CaseStudyRow, SlideRow, RfpRow, ProposalRow } from './types'
 import { databaseFailure } from '../../utils/errors'
@@ -535,4 +536,60 @@ export async function dbGetProposalArtifact(id: string): Promise<ProposalArtifac
   const { data, error } = await (sb as any).from('proposals').select('id,status,pptx_path,pdf_path').eq('id', id).single()
   if (error || !data) return null
   return { id: data.id, status: data.status, pptxPath: data.pptx_path, pdfPath: data.pdf_path }
+}
+
+// ── Recommendations Cache ─────────────────────────────────────────────────────
+
+export async function dbGetRfpRecommendations(
+  id: string,
+): Promise<{ recommendations: RequirementRecommendation[]; generatedAt: Date } | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+  const { data, error } = await (sb as any)
+    .from('rfp_documents')
+    .select('recommendations,recommendations_generated_at')
+    .eq('id', id)
+    .single()
+  if (error || !data?.recommendations) return null
+  return {
+    recommendations: data.recommendations as RequirementRecommendation[],
+    generatedAt: new Date(data.recommendations_generated_at as string),
+  }
+}
+
+export async function dbSaveRfpRecommendations(
+  id: string,
+  recommendations: RequirementRecommendation[],
+): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  const { error } = await (sb as any)
+    .from('rfp_documents')
+    .update({ recommendations, recommendations_generated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) logError('save_rfp_recommendations', error, { rfpId: id })
+}
+
+export async function dbClearRfpRecommendations(id: string): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  const { error } = await (sb as any)
+    .from('rfp_documents')
+    .update({ recommendations: null, recommendations_generated_at: null })
+    .eq('id', id)
+  if (error) logError('clear_rfp_recommendations', error, { rfpId: id })
+}
+
+export async function dbGetLatestIndexedCaseStudyAt(): Promise<Date | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+  const { data, error } = await (sb as any)
+    .from('case_studies')
+    .select('uploaded_at')
+    .eq('status', 'indexed')
+    .order('uploaded_at', { ascending: false })
+    .limit(1)
+    .single()
+  if (error || !data) return null
+  return new Date(data.uploaded_at as string)
 }
