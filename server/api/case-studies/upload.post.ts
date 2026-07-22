@@ -1,10 +1,12 @@
 import type { H3Event, MultiPartData } from 'h3'
+import type { CaseStudy } from '~/types/case-study'
 import { isSupabaseConfigured } from '../../services/supabase/client'
 import { indexCaseStudy, PPTX_MIME } from '../../services/case-studies/indexCaseStudy'
 import { MAX_UPLOAD_BYTES, readBoundedMultipartFormData } from '../../utils/upload'
 import { logError } from '../../utils/logger'
 
 const ACCEPTED_CONTENT_TYPES = new Set([PPTX_MIME, 'application/octet-stream'])
+const MAX_BATCH_FILES = 10
 export { readBoundedMultipartFormData } from '../../utils/upload'
 
 export function validatePptxUpload(fileName: string, contentType?: string): void {
@@ -37,24 +39,99 @@ interface UploadDependencies {
   indexCaseStudy: typeof indexCaseStudy
 }
 
+interface CaseStudyUploadDraft {
+  id: string
+  fileName: string
+  contentType?: string
+  data: Buffer
+  title: string
+  client: string
+  industry: string
+}
+
+interface CaseStudyUploadResult {
+  id: string
+  fileName: string
+  status: 'success' | 'error'
+  caseStudy?: CaseStudy
+  error?: string
+}
+
+interface CaseStudyUploadBatchResponse {
+  total: number
+  success: number
+  failed: number
+  results: CaseStudyUploadResult[]
+}
+
 const defaultDependencies: UploadDependencies = {
   readMultipartFormData: readBoundedMultipartFormData,
   isSupabaseConfigured,
   indexCaseStudy,
 }
 
-export async function handleCaseStudyUpload(event: H3Event, deps: UploadDependencies = defaultDependencies) {
+function partToText(part: MultiPartData | undefined): string {
+  return part?.data?.toString() ?? ''
+}
+
+function normalizeError(error: unknown): string {
+  if (isPptxValidationError(error)) return error.message
+  if (isIntentionalHttpError(error)) {
+    const withStatusMessage = error as { statusMessage?: string }
+    return withStatusMessage.statusMessage ?? 'Request failed'
+  }
+  return 'Case study indexing failed'
+}
+
+function getMetaValue(parts: MultiPartData[], key: string, id: string, fallbackKey = ''): string {
+  const byId = partToText(parts.find(part => part.name === `${key}:${id}`)).trim()
+  if (byId) return byId
+  if (fallbackKey) {
+    const fallback = partToText(parts.find(part => part.name === fallbackKey)).trim()
+    if (fallback) return fallback
+  }
+  return ''
+}
+
+function parseBatchFiles(parts: MultiPartData[]): CaseStudyUploadDraft[] {
+  const batchFileParts = parts.filter(part => part.name === 'files' && part.data && part.filename)
+  const singleFilePart = parts.find(part => part.name === 'file' && part.data && part.filename)
+  const fileParts = batchFileParts.length ? batchFileParts : (singleFilePart ? [singleFilePart] : [])
+  if (!fileParts.length) throw createError({ statusCode: 400, statusMessage: 'File field missing' })
+  if (fileParts.length > MAX_BATCH_FILES) {
+    throw createError({ statusCode: 400, statusMessage: `Maximum ${MAX_BATCH_FILES} files per upload` })
+  }
+
+  const fileIds = parts
+    .filter(part => part.name === 'fileIds')
+    .map(part => part.data?.toString()?.trim() ?? '')
+
+  return fileParts.map((part, index) => {
+    const id = fileIds[index] || `item-${index + 1}`
+    const fileName = part.filename as string
+    const title = getMetaValue(parts, 'title', id, 'title') || fileName.replace(/\.pptx$/i, '')
+    const client = getMetaValue(parts, 'client', id, 'client') || 'Unknown Client'
+    const industry = getMetaValue(parts, 'industry', id, 'industry')
+
+    return {
+      id,
+      fileName,
+      contentType: part.type,
+      data: part.data as Buffer,
+      title,
+      client,
+      industry,
+    }
+  })
+}
+
+export async function handleCaseStudyUpload(event: H3Event, deps: UploadDependencies = defaultDependencies): Promise<CaseStudyUploadBatchResponse> {
   try {
     const parts = await deps.readMultipartFormData(event)
     if (!parts?.length) throw createError({ statusCode: 400, statusMessage: 'No file provided' })
 
-    const filePart = parts.find(part => part.name === 'file')
-    if (!filePart?.data || !filePart.filename) {
-      throw createError({ statusCode: 400, statusMessage: 'File field missing' })
-    }
-
-    validatePptxUpload(filePart.filename, filePart.type)
-    if (filePart.data.length > MAX_UPLOAD_BYTES) {
+    const uploads = parseBatchFiles(parts)
+    if (uploads.some(upload => upload.data.length > MAX_UPLOAD_BYTES)) {
       throw createError({ statusCode: 413, statusMessage: 'PPTX file exceeds 50 MiB limit' })
     }
 
@@ -65,17 +142,34 @@ export async function handleCaseStudyUpload(event: H3Event, deps: UploadDependen
       })
     }
 
-    const titlePart = parts.find(part => part.name === 'title')?.data?.toString()
-    const clientPart = parts.find(part => part.name === 'client')?.data?.toString()
-    const industryPart = parts.find(part => part.name === 'industry')?.data?.toString()
+    const results: CaseStudyUploadResult[] = []
 
-    return await deps.indexCaseStudy({
-      buffer: filePart.data,
-      fileName: filePart.filename,
-      title: titlePart || filePart.filename.replace(/\.pptx$/i, ''),
-      client: clientPart || 'Unknown Client',
-      industry: industryPart || '',
-    })
+    for (const upload of uploads) {
+      try {
+        validatePptxUpload(upload.fileName, upload.contentType)
+        if (upload.data.length > MAX_UPLOAD_BYTES) {
+          throw createError({ statusCode: 413, statusMessage: 'PPTX file exceeds 50 MiB limit' })
+        }
+        const caseStudy = await deps.indexCaseStudy({
+          buffer: upload.data,
+          fileName: upload.fileName,
+          title: upload.title,
+          client: upload.client,
+          industry: upload.industry,
+        })
+        results.push({ id: upload.id, fileName: upload.fileName, status: 'success', caseStudy })
+      } catch (error) {
+        logError('case_study_batch_item_failed', error, { operation: 'case_study_upload', fileName: upload.fileName })
+        results.push({ id: upload.id, fileName: upload.fileName, status: 'error', error: normalizeError(error) })
+      }
+    }
+
+    return {
+      total: results.length,
+      success: results.filter(item => item.status === 'success').length,
+      failed: results.filter(item => item.status === 'error').length,
+      results,
+    }
   } catch (error) {
     if (isIntentionalHttpError(error)) throw error
     if (isPptxValidationError(error)) {

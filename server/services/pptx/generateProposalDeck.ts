@@ -1,10 +1,12 @@
 import pptxgen from 'pptxgenjs'
 import type { CaseStudy } from '~/types/case-study'
+import type { RequirementRecommendation } from '~/types/recommendation'
 import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
 
 export interface ProposalDeckData {
   rfp: RfpDocument
   analysis?: RfpAnalysis
+  requirementGroups?: RequirementRecommendation[]
   caseStudies: CaseStudy[]
   title: string
   preparedBy?: string
@@ -216,8 +218,15 @@ function addRfpRequirementsSlide(prs: pptxgen, data: ProposalDeckData) {
   header(slide, 'Key RFP Requirements')
   footer(slide)
 
+  const grouped = data.requirementGroups ?? []
   const requirements: Array<{ category: string; description: string; priority: 'high' | 'medium' | 'low' }> =
-    (data.analysis?.technicalRequirements ?? []).map(description => ({ category: 'Technical', description, priority: 'high' }))
+    grouped.length
+      ? grouped.map(group => ({
+        category: group.requirementType,
+        description: group.requirement,
+        priority: group.relevanceScore >= 0.8 ? 'high' : group.relevanceScore >= 0.6 ? 'medium' : 'low',
+      }))
+      : (data.analysis?.technicalRequirements ?? []).map(description => ({ category: 'technical', description, priority: 'high' }))
 
   if (!requirements.length) {
     slide.addText('Requirements will be detailed following RFP analysis.', {
@@ -282,6 +291,60 @@ function addRfpRequirementsSlide(prs: pptxgen, data: ProposalDeckData) {
       color: C.bodyText,
       valign: 'middle',
       wrap: true,
+    })
+  })
+}
+
+function addRequirementEvidenceSlides(prs: pptxgen, data: ProposalDeckData) {
+  const groups = data.requirementGroups ?? []
+  groups.forEach((group, index) => {
+    const slide = prs.addSlide()
+    slide.background = { color: C.white }
+    header(slide, `Requirement Coverage ${String(index + 1).padStart(2, '0')}`)
+    footer(slide)
+
+    slide.addText(group.requirement, {
+      x: 0.4, y: 0.78, w: W - 0.8, h: 0.46,
+      fontSize: 15,
+      bold: true,
+      color: C.primary,
+      wrap: true,
+    })
+
+    slide.addText(`Type: ${group.requirementType} · Confidence: ${Math.round(group.confidenceScore * 100)}%`, {
+      x: 0.4, y: 1.26, w: W - 0.8, h: 0.24,
+      fontSize: 8.5,
+      color: C.muted,
+    })
+
+    const supportingNames = group.matchedCaseStudies.map(item => item.caseStudyTitle).join(', ')
+    slide.addText(`Supporting case studies: ${supportingNames || 'N/A'}`, {
+      x: 0.4, y: 1.55, w: W - 0.8, h: 0.36,
+      fontSize: 9,
+      color: C.bodyText,
+      wrap: true,
+    })
+
+    group.matchedSlideExcerpts.slice(0, 3).forEach((evidence, evidenceIndex) => {
+      const y = 2.05 + evidenceIndex * 1.03
+      slide.addShape(ShapeType.rect, {
+        x: 0.4, y, w: W - 0.8, h: 0.9,
+        fill: { color: C.offWhite },
+        line: { color: C.border, width: 0.75 },
+        rectRadius: 0.05,
+      })
+      slide.addText(`${evidence.caseStudyClient} · ${evidence.caseStudyTitle} · Slide ${evidence.slideIndex}`, {
+        x: 0.55, y: y + 0.1, w: W - 1.1, h: 0.2,
+        fontSize: 8,
+        bold: true,
+        color: C.primary,
+      })
+      slide.addText(evidence.excerpt, {
+        x: 0.55, y: y + 0.32, w: W - 1.1, h: 0.5,
+        fontSize: 8,
+        color: C.bodyText,
+        wrap: true,
+      })
     })
   })
 }
@@ -646,6 +709,7 @@ export async function generateProposalDeck(data: ProposalDeckData): Promise<Buff
   addCoverSlide(prs, data)
   addExecutiveSummarySlide(prs, data)
   addRfpRequirementsSlide(prs, data)
+  addRequirementEvidenceSlides(prs, data)
   addProposedApproachSlide(prs)
 
   if (data.caseStudies.length) {

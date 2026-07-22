@@ -3,6 +3,7 @@ export interface ProposalGeneration {
   rfpId: string
   title: string
   status: 'pending' | 'generating' | 'completed' | 'error'
+  selectedRequirementGroupIds: string[]
   selectedCaseStudyIds: string[]
   pptxUrl: string | null
   pdfUrl: string | null

@@ -1,5 +1,6 @@
 import type { RfpAnalysis, RfpDocument } from '~/types/rfp'
 import type { CaseStudy } from '~/types/case-study'
+import type { RequirementRecommendation } from '~/types/recommendation'
 import type { ProposalDeckData } from '../pptx/generateProposalDeck'
 
 /**
@@ -8,12 +9,28 @@ import type { ProposalDeckData } from '../pptx/generateProposalDeck'
 export function buildProposalData(
   rfp: RfpDocument,
   analysis: RfpAnalysis,
+  selectedRequirementGroups: RequirementRecommendation[],
   selectedCaseStudies: CaseStudy[],
 ): ProposalDeckData {
   const terms = [...analysis.searchKeywords, ...analysis.requiredCapabilities, ...analysis.technicalRequirements]
     .map(value => value.toLowerCase()).filter(Boolean)
+
+  const evidenceByCaseStudy = new Map<string, Set<number>>()
+  for (const group of selectedRequirementGroups) {
+    for (const slide of group.matchedSlideExcerpts) {
+      const set = evidenceByCaseStudy.get(slide.caseStudyId) ?? new Set<number>()
+      set.add(slide.slideIndex)
+      evidenceByCaseStudy.set(slide.caseStudyId, set)
+    }
+  }
+
   const caseStudies = selectedCaseStudies.map(caseStudy => {
-    const sorted = [...caseStudy.slides].sort((a, b) => {
+    const selectedIndexes = evidenceByCaseStudy.get(caseStudy.id)
+    const fromRequirements = selectedIndexes
+      ? caseStudy.slides.filter(slide => selectedIndexes.has(slide.slideIndex))
+      : []
+
+    const sorted = [...(fromRequirements.length ? fromRequirements : caseStudy.slides)].sort((a, b) => {
       const score = (slide: CaseStudy['slides'][number]) => {
         const text = `${slide.title} ${slide.content}`.toLowerCase()
         return terms.filter(term => text.includes(term)).length
@@ -27,5 +44,12 @@ export function buildProposalData(
       slides: evidence.length ? evidence : caseStudy.slides.slice(0, 3),
     }
   })
-  return { rfp, analysis, caseStudies, title: `Proposal for ${rfp.client}` }
+
+  return {
+    rfp,
+    analysis,
+    requirementGroups: selectedRequirementGroups,
+    caseStudies,
+    title: `Proposal for ${rfp.client}`,
+  }
 }

@@ -1,4 +1,4 @@
-import type { CaseStudyRecommendation, MatchedSlideExcerpt } from '~/types/recommendation'
+import type { RequirementRecommendation, MatchedSlideExcerpt, RequirementSupportingCaseStudy } from '~/types/recommendation'
 import type { RfpAnalysis } from '~/types/rfp'
 import type { CaseStudy } from '~/types/case-study'
 import { buildRecommendationQuery, generateEmbedding } from '../embeddings/generateEmbedding'
@@ -6,7 +6,8 @@ import { dbMatchCaseStudySlides, type VectorSlideMatch } from '../supabase/db'
 import { explainRecommendations } from './explainRecommendations'
 import { logError } from '../../utils/logger'
 
-const MAX_RESULTS = 5
+const MAX_RESULTS = 6
+const MAX_CASE_STUDIES_PER_REQUIREMENT = 3
 const MAX_SLIDES = 3
 
 function round(value: number): number { return Math.round(Math.max(0, Math.min(1, value)) * 1000) / 1000 }
@@ -20,61 +21,166 @@ function terms(analysis: RfpAnalysis): string[] {
   ].map(value => normalize(value).toLowerCase()).filter(Boolean))]
 }
 
-function reasons(analysis: RfpAnalysis, slides: MatchedSlideExcerpt[]): string[] {
+function termTokens(value: string): string[] {
+  return normalize(value).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(token => token.length >= 3)
+}
+
+function scoreTermInSlide(term: string, slide: Pick<VectorSlideMatch, 'slideTitle' | 'slideContent'>): number {
+  const text = `${slide.slideTitle} ${slide.slideContent}`.toLowerCase()
+  const tokens = termTokens(term)
+  if (!tokens.length) return text.includes(term.toLowerCase()) ? 1 : 0
+  return tokens.filter(token => text.includes(token)).length
+}
+
+function reasons(analysis: RfpAnalysis, requirement: string, slides: MatchedSlideExcerpt[]): string[] {
   const strongest = slides[0]
   const found = analysis.searchKeywords.filter(keyword => slides.some(slide => slide.excerpt.toLowerCase().includes(keyword.toLowerCase())))
   return [
-    strongest ? `Strongest evidence: slide ${strongest.slideIndex}${strongest.title ? `, ${strongest.title}` : ''} — ${strongest.excerpt}` : '',
+    `Addresses requirement: ${requirement}`,
+    strongest
+      ? `Strongest evidence: ${strongest.caseStudyClient} · slide ${strongest.slideIndex}${strongest.title ? `, ${strongest.title}` : ''} — ${strongest.excerpt}`
+      : '',
     found.length ? `Matched RFP keywords: ${found.join(', ')}` : '',
   ].filter(Boolean)
 }
 
+function toSupportingCaseStudies(slides: VectorSlideMatch[]): RequirementSupportingCaseStudy[] {
+  const byCaseStudy = new Map<string, VectorSlideMatch[]>()
+  for (const slide of slides) {
+    byCaseStudy.set(slide.caseStudyId, [...(byCaseStudy.get(slide.caseStudyId) ?? []), slide])
+  }
+  return [...byCaseStudy.values()]
+    .map(group => ({
+      caseStudyId: group[0]!.caseStudyId,
+      caseStudyTitle: group[0]!.caseStudyTitle,
+      caseStudyClient: group[0]!.caseStudyClient,
+      caseStudyIndustry: group[0]!.caseStudyIndustry,
+      relevanceScore: round(mean(group.map(item => item.similarity))),
+    }))
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, MAX_CASE_STUDIES_PER_REQUIREMENT)
+}
+
 function toRecommendation(
-  analysis: RfpAnalysis, match: VectorSlideMatch[], selected: boolean,
-): CaseStudyRecommendation {
-  const sorted = [...match].sort((a, b) => b.similarity - a.similarity).slice(0, MAX_SLIDES)
-  const excerpts = sorted.map(slide => ({ slideIndex: slide.slideIndex, title: slide.slideTitle, excerpt: excerpt(slide.slideContent), similarity: round(slide.similarity) }))
+  analysis: RfpAnalysis,
+  requirement: string,
+  requirementType: RequirementRecommendation['requirementType'],
+  matches: VectorSlideMatch[],
+  selected: boolean,
+): RequirementRecommendation {
+  const sorted = [...matches].sort((a, b) => b.similarity - a.similarity).slice(0, MAX_SLIDES)
+  const excerpts = sorted.map(slide => ({
+    caseStudyId: slide.caseStudyId,
+    caseStudyTitle: slide.caseStudyTitle,
+    caseStudyClient: slide.caseStudyClient,
+    caseStudyIndustry: slide.caseStudyIndustry,
+    slideIndex: slide.slideIndex,
+    title: slide.slideTitle,
+    excerpt: excerpt(slide.slideContent),
+    similarity: round(slide.similarity),
+  }))
   const similarities = sorted.map(slide => slide.similarity)
+  const supporting = toSupportingCaseStudies(sorted)
   return {
-    id: `${analysis.rfpId}:${sorted[0]!.caseStudyId}`,
+    id: `${analysis.rfpId}:${requirementType}:${normalize(requirement).toLowerCase()}`,
     rfpId: analysis.rfpId,
-    caseStudyId: sorted[0]!.caseStudyId,
-    caseStudyTitle: sorted[0]!.caseStudyTitle,
-    caseStudyClient: sorted[0]!.caseStudyClient,
-    caseStudyIndustry: sorted[0]!.caseStudyIndustry,
+    requirement,
+    requirementType,
     relevanceScore: round(0.7 * similarities[0]! + 0.3 * mean(similarities)),
     confidenceScore: round(mean(similarities)),
-    reasons: reasons(analysis, excerpts),
+    reasons: reasons(analysis, requirement, excerpts),
     matchedRequirements: analysis.searchKeywords.filter(keyword => excerpts.some(slide => slide.excerpt.toLowerCase().includes(keyword.toLowerCase()))),
+    matchedCaseStudies: supporting,
     matchedSlideExcerpts: excerpts,
     explanationSource: 'fallback',
     selected,
   }
 }
 
-function keywordRecommendations(analysis: RfpAnalysis, caseStudies: CaseStudy[]): CaseStudyRecommendation[] {
-  const keywords = terms(analysis)
-  const scored = caseStudies.map(caseStudy => {
-    const matches = caseStudy.slides.map(slide => {
-      const text = normalize([slide.title, slide.content, ...slide.tags].join(' ')).toLowerCase()
-      const count = keywords.filter(keyword => text.includes(keyword)).length
-      return { slide, count }
-    }).filter(item => item.count > 0)
-    const metadata = normalize([caseStudy.title, caseStudy.client, caseStudy.industry, caseStudy.summary, ...caseStudy.tags].join(' ')).toLowerCase()
-    const score = matches.reduce((sum, item) => sum + item.count, 0) + keywords.filter(keyword => metadata.includes(keyword)).length
-    return { caseStudy, matches, score }
-  }).filter(item => item.score > 0)
-  const maximum = Math.max(0, ...scored.map(item => item.score))
-  return scored.sort((a, b) => b.score - a.score).slice(0, MAX_RESULTS).map((entry, index) => {
-    const slideMatches: VectorSlideMatch[] = entry.matches.sort((a, b) => b.count - a.count).slice(0, MAX_SLIDES).map(match => ({
-      slideId: `${entry.caseStudy.id}:${match.slide.slideIndex}`, caseStudyId: entry.caseStudy.id,
-      caseStudyTitle: entry.caseStudy.title, caseStudyClient: entry.caseStudy.client, caseStudyIndustry: entry.caseStudy.industry,
-      slideIndex: match.slide.slideIndex, slideTitle: match.slide.title, slideContent: match.slide.content,
-      similarity: match.count / maximum,
-    }))
-    if (!slideMatches.length) slideMatches.push({ slideId: entry.caseStudy.id, caseStudyId: entry.caseStudy.id, caseStudyTitle: entry.caseStudy.title, caseStudyClient: entry.caseStudy.client, caseStudyIndustry: entry.caseStudy.industry, slideIndex: 0, slideTitle: '', slideContent: entry.caseStudy.summary || entry.caseStudy.title, similarity: entry.score / maximum })
-    return toRecommendation(analysis, slideMatches, index === 0)
+interface RequirementCandidate {
+  requirement: string
+  requirementType: RequirementRecommendation['requirementType']
+}
+
+function requirementCandidates(analysis: RfpAnalysis): RequirementCandidate[] {
+  const values: RequirementCandidate[] = [
+    ...analysis.requiredCapabilities.map(value => ({ requirement: value, requirementType: 'capability' as const })),
+    ...analysis.technicalRequirements.map(value => ({ requirement: value, requirementType: 'technical' as const })),
+    ...analysis.evaluationCriteria.map(value => ({ requirement: value, requirementType: 'evaluation' as const })),
+  ]
+  if (!values.length) {
+    values.push(...analysis.searchKeywords.map(value => ({ requirement: value, requirementType: 'keyword' as const })))
+  }
+  const seen = new Set<string>()
+  return values.filter(item => {
+    const key = `${item.requirementType}:${normalize(item.requirement).toLowerCase()}`
+    if (!item.requirement.trim() || seen.has(key)) return false
+    seen.add(key)
+    return true
   })
+}
+
+function recommendationFromMatches(
+  analysis: RfpAnalysis,
+  candidates: RequirementCandidate[],
+  allMatches: VectorSlideMatch[],
+): RequirementRecommendation[] {
+  const groups = candidates.map(candidate => {
+    const scored = allMatches
+      .map(match => {
+        const tokenScore = scoreTermInSlide(candidate.requirement, match)
+        if (!tokenScore) return null
+        return { match, score: tokenScore + match.similarity }
+      })
+      .filter((item): item is { match: VectorSlideMatch; score: number } => item !== null)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_SLIDES)
+      .map(item => item.match)
+
+    return scored.length
+      ? toRecommendation(analysis, candidate.requirement, candidate.requirementType, scored, false)
+      : null
+  }).filter((item): item is RequirementRecommendation => item !== null)
+
+  return groups
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, MAX_RESULTS)
+    .map((item, index) => ({ ...item, selected: index === 0 }))
+}
+
+function keywordRecommendations(analysis: RfpAnalysis, caseStudies: CaseStudy[]): RequirementRecommendation[] {
+  const candidates = requirementCandidates(analysis)
+  const keywordPool = terms(analysis)
+  const recommendations = candidates.map(candidate => {
+    const slideMatches: VectorSlideMatch[] = []
+    for (const caseStudy of caseStudies) {
+      for (const slide of caseStudy.slides) {
+        const text = normalize([slide.title, slide.content, ...slide.tags].join(' ')).toLowerCase()
+        const termScore = scoreTermInSlide(candidate.requirement, { slideTitle: slide.title, slideContent: slide.content })
+        const keywordScore = keywordPool.filter(keyword => text.includes(keyword)).length
+        const score = termScore * 2 + keywordScore
+        if (!score) continue
+        slideMatches.push({
+          slideId: `${caseStudy.id}:${slide.slideIndex}`,
+          caseStudyId: caseStudy.id,
+          caseStudyTitle: caseStudy.title,
+          caseStudyClient: caseStudy.client,
+          caseStudyIndustry: caseStudy.industry,
+          slideIndex: slide.slideIndex,
+          slideTitle: slide.title,
+          slideContent: slide.content,
+          similarity: round(Math.min(1, score / 10)),
+        })
+      }
+    }
+    if (!slideMatches.length) return null
+    return toRecommendation(analysis, candidate.requirement, candidate.requirementType, slideMatches, false)
+  }).filter((item): item is RequirementRecommendation => item !== null)
+
+  return recommendations
+    .sort((a, b) => b.relevanceScore - a.relevanceScore)
+    .slice(0, MAX_RESULTS)
+    .map((item, index) => ({ ...item, selected: index === 0 }))
 }
 
 export interface RecommendationDependencies {
@@ -86,18 +192,16 @@ const defaultDependencies: RecommendationDependencies = { generateEmbedding, mat
 
 export async function findRelevantCaseStudies(
   analysis: RfpAnalysis, caseStudies: CaseStudy[], deps: RecommendationDependencies = defaultDependencies,
-): Promise<CaseStudyRecommendation[]> {
-  let ranked: CaseStudyRecommendation[]
+): Promise<RequirementRecommendation[]> {
+  let ranked: RequirementRecommendation[]
+  const candidates = requirementCandidates(analysis)
   try {
     const query = buildRecommendationQuery(analysis)
     if (!query) ranked = keywordRecommendations(analysis, caseStudies)
     else {
       const matches = await deps.matchSlides(await deps.generateEmbedding(query))
       if (!matches.length) return []
-      const groups = new Map<string, VectorSlideMatch[]>()
-      for (const match of matches) groups.set(match.caseStudyId, [...(groups.get(match.caseStudyId) ?? []), match])
-      ranked = [...groups.values()].map((group, index) => toRecommendation(analysis, group, index === 0))
-        .sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, MAX_RESULTS).map((item, index) => ({ ...item, selected: index === 0 }))
+      ranked = recommendationFromMatches(analysis, candidates, matches)
     }
   } catch (error) {
     logError('recommendation_vector_fallback', error, { rfpId: analysis.rfpId, dependency: 'vector_search' })
@@ -107,12 +211,12 @@ export async function findRelevantCaseStudies(
   if (!ranked.length) return []
   try {
     const explanations = await deps.explain(analysis, ranked)
-    const byId = new Map(explanations.map(item => [item.caseStudyId, item]))
+    const byId = new Map(explanations.map(item => [item.recommendationId, item]))
     return ranked.map(item => ({
       ...item,
-      reasons: [byId.get(item.caseStudyId)!.reason],
-      matchedRequirements: byId.get(item.caseStudyId)!.matchedRequirements,
-      confidenceScore: byId.get(item.caseStudyId)!.confidence,
+      reasons: [byId.get(item.id)!.reason],
+      matchedRequirements: byId.get(item.id)!.matchedRequirements,
+      confidenceScore: byId.get(item.id)!.confidence,
       explanationSource: 'ai' as const,
       explanationWarning: undefined,
     }))

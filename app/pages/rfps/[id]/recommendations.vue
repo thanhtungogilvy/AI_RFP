@@ -30,7 +30,7 @@ async function handleGenerate() {
   <AppShell>
     <PageHeader
       title="AI Recommendations"
-      description="Review requirements extracted from the RFP and select relevant case studies."
+      description="Review requirement groups extracted from the RFP and select the groups to compose your proposal."
     >
       <template #actions>
         <NuxtLink to="/rfps">
@@ -40,7 +40,7 @@ async function handleGenerate() {
           :disabled="!selectedIds.length || generating"
           @click="handleGenerate"
         >
-          {{ generating ? 'Generating...' : `Generate Proposal (${selectedIds.length} selected)` }}
+          {{ generating ? 'Generating...' : `Generate Proposal (${selectedIds.length} groups selected)` }}
         </Button>
         <label v-if="pdfAvailable" class="flex items-center gap-1 text-xs text-muted-foreground">
           <input v-model="includePdf" type="checkbox" /> Also generate PDF
@@ -93,7 +93,7 @@ async function handleGenerate() {
       <!-- Recommendations -->
       <div class="space-y-4 xl:col-span-3">
         <h2 class="text-sm font-semibold text-foreground">
-          Recommended Case Studies
+          Recommended Requirement Groups
           <span class="ml-1 font-normal text-muted-foreground">({{ recommendations.length }} found)</span>
         </h2>
 

@@ -79,6 +79,7 @@ export interface Database {
           rfp_id: string | null
           title: string
           status: 'pending' | 'generating' | 'completed' | 'error'
+          selected_requirement_group_ids: string[]
           selected_case_study_ids: string[]
           pptx_url: string | null
           pptx_path: string | null

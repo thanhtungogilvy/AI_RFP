@@ -1,5 +1,28 @@
 import type { CaseStudy } from '~/types/case-study'
 
+export interface CaseStudyUploadItemInput {
+  id: string
+  file: File
+  title: string
+  client: string
+  industry: string
+}
+
+export interface CaseStudyUploadItemResult {
+  id: string
+  fileName: string
+  status: 'success' | 'error'
+  caseStudy?: CaseStudy
+  error?: string
+}
+
+export interface CaseStudyUploadBatchResponse {
+  total: number
+  success: number
+  failed: number
+  results: CaseStudyUploadItemResult[]
+}
+
 export const useCaseStudies = () => {
   const caseStudies = ref<CaseStudy[]>([])
   const error = ref<string | null>(null)
@@ -15,25 +38,34 @@ export const useCaseStudies = () => {
     }
   })
 
-  const upload = (file: File, meta: { title: string; client: string; industry: string }) => actionState.run('uploading', async () => {
+  const uploadBatch = (items: CaseStudyUploadItemInput[]) => actionState.run('uploading', async () => {
     error.value = null
     try {
       const formData = new FormData()
-      formData.append('file', file)
-      formData.append('title', meta.title)
-      formData.append('client', meta.client)
-      formData.append('industry', meta.industry)
-      const data = await $fetch<CaseStudy>('/api/case-studies/upload', {
+      items.forEach((item) => {
+        formData.append('files', item.file)
+        formData.append('fileIds', item.id)
+        formData.append(`title:${item.id}`, item.title)
+        formData.append(`client:${item.id}`, item.client)
+        formData.append(`industry:${item.id}`, item.industry)
+      })
+      const data = await $fetch<CaseStudyUploadBatchResponse>('/api/case-studies/upload', {
         method: 'POST',
         body: formData,
       })
-      caseStudies.value.unshift(data)
+      const succeeded = data.results
+        .filter((result) => result.status === 'success' && result.caseStudy)
+        .map((result) => result.caseStudy as CaseStudy)
+      caseStudies.value.unshift(...succeeded)
       return data
     } catch (caught: unknown) {
       error.value = caught instanceof Error ? caught.message : 'Failed to upload case study'
       throw caught
     }
   })
+
+  const upload = (file: File, meta: { title: string; client: string; industry: string }) =>
+    uploadBatch([{ id: `single-${Date.now()}`, file, title: meta.title, client: meta.client, industry: meta.industry }])
 
   const search = (query: string) => actionState.run('searching', async () => {
     error.value = null
@@ -48,7 +80,7 @@ export const useCaseStudies = () => {
   })
 
   return {
-    caseStudies, error, fetchAll, upload, search,
+    caseStudies, error, fetchAll, upload, uploadBatch, search,
     loading: actionState.loading,
     fetching: actionState.isActive('fetching'),
     searching: actionState.isActive('searching'),

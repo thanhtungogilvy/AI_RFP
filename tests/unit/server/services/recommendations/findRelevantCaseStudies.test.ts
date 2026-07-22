@@ -14,18 +14,28 @@ const caseStudies: CaseStudy[] = [{
 }]
 
 describe('findRelevantCaseStudies', () => {
-  it('groups vector slide matches into scored recommendations with excerpts', async () => {
+  it('groups vector slide matches into requirement-centric recommendations with excerpts', async () => {
     const result = await findRelevantCaseStudies(analysis, caseStudies, {
       generateEmbedding: vi.fn().mockResolvedValue([0.1]) as any,
       matchSlides: vi.fn().mockResolvedValue([{
         slideId: 'slide-1', caseStudyId: 'cs-1', caseStudyTitle: 'Bank cloud migration', caseStudyClient: 'Acme', caseStudyIndustry: 'Banking',
         slideIndex: 1, slideTitle: 'Results', slideContent: 'Cloud migration completed with banking availability.', similarity: 0.9,
       }]),
-      explain: vi.fn().mockResolvedValue([{ caseStudyId: 'cs-1', reason: 'Cloud migration evidence.', matchedRequirements: ['Cloud migration'], confidence: 0.82 }]),
+      explain: vi.fn().mockResolvedValue([
+        { recommendationId: 'rfp-1:capability:cloud migration', reason: 'Cloud migration evidence.', matchedRequirements: ['Cloud migration'], confidence: 0.82 },
+        { recommendationId: 'rfp-1:technical:99.99% availability', reason: 'Availability evidence.', matchedRequirements: ['Cloud migration'], confidence: 0.8 },
+      ]),
     })
-    expect(result).toHaveLength(1)
-    expect(result[0]).toMatchObject({ relevanceScore: 0.9, selected: true, matchedSlideExcerpts: [expect.objectContaining({ slideIndex: 1, similarity: 0.9 })] })
-    expect(result[0]?.reasons.join(' ')).toContain('Cloud migration')
+    const cloud = result.find(item => item.requirement === 'Cloud migration')
+    expect(cloud).toBeTruthy()
+    expect(cloud).toMatchObject({
+      requirement: 'Cloud migration',
+      requirementType: 'capability',
+      relevanceScore: 0.9,
+      selected: true,
+      matchedSlideExcerpts: [expect.objectContaining({ slideIndex: 1, similarity: 0.9, caseStudyId: 'cs-1' })],
+    })
+    expect(cloud?.reasons.join(' ')).toContain('Cloud migration')
   })
 
   it('falls back to keyword matching when embedding fails', async () => {
@@ -34,7 +44,7 @@ describe('findRelevantCaseStudies', () => {
       matchSlides: vi.fn(),
       explain: vi.fn(),
     })
-    expect(result[0]).toMatchObject({ caseStudyId: 'cs-1', selected: true })
+    expect(result[0]).toMatchObject({ requirement: 'Cloud migration', selected: true })
     expect(result[0]?.matchedSlideExcerpts[0]?.excerpt).toContain('Cloud migration')
   })
 
@@ -49,11 +59,11 @@ describe('findRelevantCaseStudies', () => {
     })
 
     expect(result[0]).toMatchObject({
-      caseStudyId: 'cs-1',
+      requirement: 'Cloud migration',
       explanationSource: 'fallback',
       explanationWarning: 'AI explanation unavailable',
     })
-    expect(result[0]?.reasons[0]).toContain('Strongest evidence')
+    expect(result[0]?.reasons[1]).toContain('Strongest evidence')
   })
 
   it('does not request an explanation when vector search finds no candidates', async () => {

@@ -28,10 +28,10 @@ export const RECOMMENDATION_EXPLANATION_RESPONSE_SCHEMA: ChatResponseSchema = {
         items: {
           type: 'object', additionalProperties: false,
           properties: {
-            caseStudyId: { type: 'string' }, reason: { type: 'string' },
+            recommendationId: { type: 'string' }, reason: { type: 'string' },
             matchedRequirements: { type: 'array', items: { type: 'string' } }, confidence: { type: 'number' },
           },
-          required: ['caseStudyId', 'reason', 'matchedRequirements', 'confidence'],
+          required: ['recommendationId', 'reason', 'matchedRequirements', 'confidence'],
         },
       },
     },
@@ -61,9 +61,9 @@ Always respond with valid JSON matching the requested schema.
 export function buildRecommendationExplanationPrompt(requirements: string[], candidatesJson: string): string {
   return `
 RFP requirements: ${JSON.stringify(requirements)}
-Selected case studies and evidence: ${candidatesJson}
-Return exactly: {"explanations":[{"caseStudyId":"string","reason":"string","matchedRequirements":["string"],"confidence":0}]}
-Include exactly one explanation per supplied caseStudyId. matchedRequirements must be copied from RFP requirements.
+Requirement-centric recommendation groups and evidence: ${candidatesJson}
+Return exactly: {"explanations":[{"recommendationId":"string","reason":"string","matchedRequirements":["string"],"confidence":0}]}
+Include exactly one explanation per supplied recommendationId. matchedRequirements must be copied from RFP requirements.
 `.trim()
 }
 

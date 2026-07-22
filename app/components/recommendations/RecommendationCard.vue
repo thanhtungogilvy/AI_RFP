@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { CaseStudyRecommendation } from '~/types/recommendation'
+import type { RequirementRecommendation } from '~/types/recommendation'
 
 interface Props {
-  recommendation: CaseStudyRecommendation
+  recommendation: RequirementRecommendation
 }
 
 const props = defineProps<Props>()
@@ -30,14 +30,12 @@ const scoreColor = computed(() => {
       />
       <div class="flex-1 min-w-0">
         <div class="flex items-start justify-between gap-2">
-          <h3 class="text-sm font-semibold text-foreground">{{ recommendation.caseStudyTitle }}</h3>
+          <h3 class="text-sm font-semibold text-foreground">{{ recommendation.requirement }}</h3>
           <span class="shrink-0 text-sm font-bold" :class="scoreColor">
             {{ Math.round(recommendation.relevanceScore * 100) }}%
           </span>
         </div>
-        <p class="text-xs text-muted-foreground">
-          {{ recommendation.caseStudyClient }} &middot; {{ recommendation.caseStudyIndustry }}
-        </p>
+        <p class="text-xs text-muted-foreground">Requirement group · {{ recommendation.requirementType }}</p>
         <p v-if="recommendation.reasons[0]" class="mt-3 text-xs text-foreground"><span class="font-semibold">Why recommended:</span> {{ recommendation.reasons[0] }}</p>
         <div v-if="recommendation.matchedRequirements.length" class="mt-3 flex flex-wrap gap-1">
           <span v-for="requirement in recommendation.matchedRequirements" :key="requirement" class="rounded bg-secondary px-1.5 py-0.5 text-xs">{{ requirement }}</span>
@@ -58,9 +56,23 @@ const scoreColor = computed(() => {
           {{ recommendation.explanationSource === 'ai' ? 'AI confidence' : 'Evidence confidence' }}: <span class="font-medium text-foreground">{{ Math.round(recommendation.confidenceScore * 100) }}%</span>
         </p>
         <p v-if="recommendation.explanationWarning" class="mt-2 text-xs text-amber-700">{{ recommendation.explanationWarning }}. Showing deterministic evidence instead.</p>
+        <div v-if="recommendation.matchedCaseStudies.length" class="mt-3 space-y-2">
+          <p class="text-xs font-semibold text-foreground">Supporting case studies</p>
+          <div class="flex flex-wrap gap-2">
+            <span
+              v-for="item in recommendation.matchedCaseStudies"
+              :key="item.caseStudyId"
+              class="rounded border border-border bg-background px-2 py-1 text-xs"
+            >
+              {{ item.caseStudyTitle }} ({{ Math.round(item.relevanceScore * 100) }}%)
+            </span>
+          </div>
+        </div>
         <div v-if="recommendation.matchedSlideExcerpts.length" class="mt-3 space-y-2">
-          <div v-for="slide in recommendation.matchedSlideExcerpts" :key="slide.slideIndex" class="rounded border border-border p-2 text-xs">
-            <p class="font-medium">Slide {{ slide.slideIndex }}{{ slide.title ? `: ${slide.title}` : '' }} · {{ Math.round(slide.similarity * 100) }}%</p>
+          <div v-for="slide in recommendation.matchedSlideExcerpts" :key="`${slide.caseStudyId}:${slide.slideIndex}`" class="rounded border border-border p-2 text-xs">
+            <p class="font-medium">
+              {{ slide.caseStudyClient }} · Slide {{ slide.slideIndex }}{{ slide.title ? `: ${slide.title}` : '' }} · {{ Math.round(slide.similarity * 100) }}%
+            </p>
             <p class="mt-1 text-muted-foreground">{{ slide.excerpt }}</p>
           </div>
         </div>

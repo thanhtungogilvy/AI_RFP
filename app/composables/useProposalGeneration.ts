@@ -5,12 +5,12 @@ export const useProposalGeneration = () => {
   const error = ref<string | null>(null)
   const actionState = createActionState(['fetching', 'generating'] as const)
 
-  const generate = (rfpId: string, selectedCaseStudyIds: string[], includePdf = false) => actionState.run('generating', async () => {
+  const generate = (rfpId: string, selectedRequirementGroupIds: string[], includePdf = false) => actionState.run('generating', async () => {
     error.value = null
     try {
       const data = await $fetch<ProposalGeneration>('/api/proposals/generate', {
         method: 'POST',
-        body: { rfpId, selectedCaseStudyIds, includePdf },
+        body: { rfpId, selectedRequirementGroupIds, includePdf },
       })
       proposal.value = data
       return data
