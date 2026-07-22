@@ -1,12 +1,20 @@
 <script setup lang="ts">
+import { Bug, Eye, Pencil, Trash2 } from 'lucide-vue-next'
 import type { RfpDocument } from '~/types/rfp'
 
 interface Props {
   rfp: RfpDocument
+  deleting?: boolean
 }
 
 defineProps<Props>()
-defineEmits<{ (e: 'analyze', id: string): void }>()
+const emit = defineEmits<{ (e: 'analyze' | 'delete', id: string): void }>()
+const deleteOpen = ref(false)
+
+function confirmDelete(id: string) {
+  deleteOpen.value = false
+  emit('delete', id)
+}
 </script>
 
 <template>
@@ -21,12 +29,26 @@ defineEmits<{ (e: 'analyze', id: string): void }>()
     <p v-if="rfp.deadline" class="mt-1 text-xs text-muted-foreground">
       Deadline: <span class="text-foreground">{{ new Date(rfp.deadline).toLocaleDateString() }}</span>
     </p>
-    <div class="mt-4 flex items-center gap-2">
+    <div class="mt-4 flex flex-wrap items-center gap-2">
       <NuxtLink
-        :to="`/rfps/${rfp.id}/debug`"
+        :to="`/rfps/${rfp.id}`"
         class="inline-flex h-7 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-accent"
       >
-        Debug
+        <Eye class="mr-1 h-3.5 w-3.5" /> View
+      </NuxtLink>
+      <NuxtLink
+        :to="`/rfps/${rfp.id}/edit`"
+        class="inline-flex h-7 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground hover:bg-accent"
+      >
+        <Pencil class="mr-1 h-3.5 w-3.5" /> Edit
+      </NuxtLink>
+      <NuxtLink
+        :to="`/rfps/${rfp.id}/debug`"
+        class="inline-flex h-7 items-center rounded-md border border-border px-2 text-xs font-medium text-foreground hover:bg-accent"
+        title="Debug RFP"
+      >
+        <Bug class="h-3.5 w-3.5" />
+        <span class="sr-only">Debug RFP</span>
       </NuxtLink>
       <NuxtLink
         v-if="rfp.status === 'analyzed'"
@@ -39,6 +61,24 @@ defineEmits<{ (e: 'analyze', id: string): void }>()
         {{ rfp.status === 'error' ? 'Retry analysis' : 'Analyze RFP' }}
       </Button>
       <span v-else class="text-xs text-muted-foreground">Uploaded {{ new Date(rfp.uploadedAt).toLocaleDateString() }}</span>
+      <Dialog v-model:open="deleteOpen">
+        <DialogTrigger as-child>
+          <Button variant="ghost" size="icon" :disabled="deleting" title="Delete RFP">
+            <Trash2 class="h-4 w-4 text-destructive" />
+            <span class="sr-only">Delete RFP</span>
+          </Button>
+        </DialogTrigger>
+        <DialogContent class="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete RFP document?</DialogTitle>
+            <DialogDescription>This removes the document from active RFPs. You can no longer analyze it or generate proposals from it.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose as-child><Button variant="outline">Cancel</Button></DialogClose>
+            <Button variant="destructive" @click="confirmDelete(rfp.id)">Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   </div>
 </template>

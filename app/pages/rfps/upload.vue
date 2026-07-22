@@ -6,6 +6,7 @@ const uploadedFile = ref<File | null>(null)
 const title = ref('')
 const client = ref('')
 const industry = ref('')
+const deadline = ref('')
 const uploadSuccess = ref(false)
 
 function formatFileSize(bytes: number): string {
@@ -30,6 +31,7 @@ async function handleSubmit() {
       title: title.value,
       client: client.value,
       industry: industry.value,
+      deadline: deadline.value || undefined,
     })
     await analyze(rfp.id)
     uploadSuccess.value = true
@@ -95,6 +97,14 @@ async function handleSubmit() {
               v-model="industry"
               type="text"
               placeholder="e.g. Banking & Finance"
+              class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-foreground">Deadline</label>
+            <input
+              v-model="deadline"
+              type="date"
               class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>

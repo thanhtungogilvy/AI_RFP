@@ -6,6 +6,7 @@ export interface RfpDocument {
   deadline?: string
   fileName: string
   uploadedAt: string
+  updatedAt?: string
   status: 'uploaded' | 'analyzing' | 'analyzed' | 'error'
 }
 

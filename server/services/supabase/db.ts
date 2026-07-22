@@ -61,6 +61,7 @@ function mapRfp(row: RfpRow): RfpDocument {
     deadline: row.deadline ?? undefined,
     fileName: row.file_name,
     uploadedAt: row.uploaded_at,
+    updatedAt: row.updated_at,
     status: row.status,
   }
 }
@@ -237,6 +238,7 @@ export async function dbGetRfps(): Promise<RfpDocument[] | null> {
   const { data, error } = await sb
     .from('rfp_documents')
     .select('*')
+    .is('deleted_at', null)
     .order('uploaded_at', { ascending: false })
 
   if (error) throwDatabaseFailure('list_rfps', error)
@@ -251,6 +253,7 @@ export async function dbGetRfpById(id: string): Promise<RfpDocument | null> {
     .from('rfp_documents')
     .select('*')
     .eq('id', id)
+    .is('deleted_at', null)
     .single()
 
   if (error) return null
@@ -269,6 +272,7 @@ export async function dbGetRfpDebugById(id: string): Promise<RfpDebugRecord | nu
     .from('rfp_documents')
     .select('id,title,client,industry,deadline,file_name,file_path,content,analysis,embedding,status,uploaded_at,created_at')
     .eq('id', id)
+    .is('deleted_at', null)
     .single()
 
   if (error || !data) return null
@@ -306,7 +310,7 @@ export async function dbInsertRfp(
 export async function dbGetRfpAnalysisInput(id: string): Promise<{ text: string } | null> {
   const sb = getSupabaseClient()
   if (!sb) return null
-  const { data, error } = await (sb as any).from('rfp_documents').select('content').eq('id', id).single()
+  const { data, error } = await (sb as any).from('rfp_documents').select('content').eq('id', id).is('deleted_at', null).single()
   if (error || !data) return null
   return typeof data.content === 'string' ? { text: data.content } : null
 }
@@ -328,7 +332,7 @@ export async function dbUpdateRfpEmbedding(id: string, embedding: number[]): Pro
 export async function dbGetRfpAnalysis(id: string): Promise<RfpAnalysis | null> {
   const sb = getSupabaseClient()
   if (!sb) return null
-  const { data, error } = await (sb as any).from('rfp_documents').select('analysis').eq('id', id).single()
+  const { data, error } = await (sb as any).from('rfp_documents').select('analysis').eq('id', id).is('deleted_at', null).single()
   if (error || !data?.analysis) return null
   return data.analysis as RfpAnalysis
 }
@@ -345,6 +349,66 @@ export async function dbUpdateRfpFilePath(id: string, filePath: string): Promise
   if (!sb) return
   const { error } = await (sb as any).from('rfp_documents').update({ file_path: filePath }).eq('id', id)
   if (error) throwDatabaseFailure('update_rfp_file_path', error)
+}
+
+export type RfpMetadata = Pick<RfpDocument, 'title' | 'client' | 'industry' | 'deadline'>
+
+export async function dbUpdateRfpMetadata(id: string, fields: RfpMetadata): Promise<RfpDocument | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+
+  const { data, error } = await (sb as any)
+    .from('rfp_documents')
+    .update({
+      title: fields.title,
+      client: fields.client,
+      industry: fields.industry,
+      deadline: fields.deadline ?? null,
+    })
+    .eq('id', id)
+    .is('deleted_at', null)
+    .select('*')
+    .single()
+  if (error || !data) return null
+  return mapRfp(data as RfpRow)
+}
+
+export interface RfpFileReplacement {
+  fileName: string
+  filePath: string
+  content: string
+}
+
+export async function dbReplaceRfpFile(id: string, fields: RfpFileReplacement): Promise<RfpDocument | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+
+  const { data, error } = await (sb as any)
+    .from('rfp_documents')
+    .update({
+      file_name: fields.fileName,
+      file_path: fields.filePath,
+      content: fields.content,
+      analysis: null,
+      embedding: null,
+      status: 'uploaded',
+    })
+    .eq('id', id)
+    .is('deleted_at', null)
+    .select('*')
+    .single()
+  if (error || !data) return null
+  return mapRfp(data as RfpRow)
+}
+
+export async function dbSoftDeleteRfp(id: string): Promise<void> {
+  const sb = getSupabaseClient()
+  if (!sb) return
+  const { error } = await (sb as any)
+    .from('rfp_documents')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) throwDatabaseFailure('soft_delete_rfp', error)
 }
 
 export async function dbCountCaseStudiesIndexed(): Promise<number | null> {

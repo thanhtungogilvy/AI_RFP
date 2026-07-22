@@ -11,9 +11,13 @@ import {
   dbCountProposalsGenerated,
   dbCountRfpsAnalyzed,
   dbGetCaseStudyById,
+  dbGetRfps,
   dbInsertCaseStudy,
   dbInsertCaseStudySlides,
   dbSearchCaseStudies,
+  dbSoftDeleteRfp,
+  dbReplaceRfpFile,
+  dbUpdateRfpMetadata,
   dbUpdateRfpEmbedding,
   dbUpdateCaseStudyFilePath,
   dbUpdateCaseStudyStatus,
@@ -107,6 +111,95 @@ describe('dbUpdateCaseStudyFilePath', () => {
     await expect(dbUpdateCaseStudyFilePath('case-study-1', 'deck.pptx')).rejects.toMatchObject({
       statusCode: 500,
       statusMessage: 'The database request could not be completed.',
+    })
+  })
+})
+
+describe('dbSoftDeleteRfp', () => {
+  it('marks an RFP document as deleted by id', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null })
+    const update = vi.fn(() => ({ eq }))
+    const from = vi.fn(() => ({ update }))
+    getSupabaseClient.mockReturnValue({ from })
+
+    await dbSoftDeleteRfp('rfp-1')
+
+    expect(from).toHaveBeenCalledWith('rfp_documents')
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ deleted_at: expect.any(String) }))
+    expect(eq).toHaveBeenCalledWith('id', 'rfp-1')
+  })
+})
+
+describe('dbGetRfps', () => {
+  it('excludes soft-deleted RFP documents', async () => {
+    const order = vi.fn().mockResolvedValue({ data: [], error: null })
+    const is = vi.fn(() => ({ order }))
+    const select = vi.fn(() => ({ is }))
+    const from = vi.fn(() => ({ select }))
+    getSupabaseClient.mockReturnValue({ from })
+
+    await expect(dbGetRfps()).resolves.toEqual([])
+
+    expect(from).toHaveBeenCalledWith('rfp_documents')
+    expect(is).toHaveBeenCalledWith('deleted_at', null)
+    expect(order).toHaveBeenCalledWith('uploaded_at', { ascending: false })
+  })
+})
+
+describe('dbUpdateRfpMetadata', () => {
+  it('updates editable RFP metadata and returns the updated document', async () => {
+    const updatedRow = {
+      id: 'rfp-1', title: 'Updated RFP', client: 'Updated Client', industry: 'Technology', deadline: '2026-08-01',
+      file_name: 'rfp.pdf', file_path: 'rfp-1/rfp.pdf', content: '', analysis: null, embedding: null,
+      status: 'uploaded', uploaded_at: '2026-07-22T00:00:00.000Z', created_at: '2026-07-22T00:00:00.000Z',
+      updated_at: '2026-07-22T01:00:00.000Z', deleted_at: null,
+    }
+    const single = vi.fn().mockResolvedValue({ data: updatedRow, error: null })
+    const select = vi.fn(() => ({ single }))
+    const is = vi.fn(() => ({ select }))
+    const eq = vi.fn(() => ({ is }))
+    const update = vi.fn(() => ({ eq }))
+    const from = vi.fn(() => ({ update }))
+    getSupabaseClient.mockReturnValue({ from })
+
+    await expect(dbUpdateRfpMetadata('rfp-1', {
+      title: 'Updated RFP', client: 'Updated Client', industry: 'Technology', deadline: '2026-08-01',
+    })).resolves.toMatchObject({ id: 'rfp-1', title: 'Updated RFP', deadline: '2026-08-01' })
+
+    expect(update).toHaveBeenCalledWith({
+      title: 'Updated RFP', client: 'Updated Client', industry: 'Technology', deadline: '2026-08-01',
+    })
+    expect(eq).toHaveBeenCalledWith('id', 'rfp-1')
+    expect(is).toHaveBeenCalledWith('deleted_at', null)
+  })
+})
+
+describe('dbReplaceRfpFile', () => {
+  it('replaces an active RFP file and resets derived analysis data', async () => {
+    const updatedRow = {
+      id: 'rfp-1', title: 'RFP', client: 'Client', industry: '', deadline: null,
+      file_name: 'replacement.docx', file_path: 'rfp-1/replacement.docx', content: 'New content', analysis: null, embedding: null,
+      status: 'uploaded', uploaded_at: '2026-07-22T00:00:00.000Z', created_at: '2026-07-22T00:00:00.000Z',
+      updated_at: '2026-07-22T01:00:00.000Z', deleted_at: null,
+    }
+    const single = vi.fn().mockResolvedValue({ data: updatedRow, error: null })
+    const select = vi.fn(() => ({ single }))
+    const is = vi.fn(() => ({ select }))
+    const eq = vi.fn(() => ({ is }))
+    const update = vi.fn(() => ({ eq }))
+    getSupabaseClient.mockReturnValue({ from: vi.fn(() => ({ update })) })
+
+    await expect(dbReplaceRfpFile('rfp-1', {
+      fileName: 'replacement.docx', filePath: 'rfp-1/replacement.docx', content: 'New content',
+    })).resolves.toMatchObject({ id: 'rfp-1', fileName: 'replacement.docx', status: 'uploaded' })
+
+    expect(update).toHaveBeenCalledWith({
+      file_name: 'replacement.docx',
+      file_path: 'rfp-1/replacement.docx',
+      content: 'New content',
+      analysis: null,
+      embedding: null,
+      status: 'uploaded',
     })
   })
 })

@@ -52,6 +52,10 @@ async function handleSubmit() {
           @file="handleFile"
         />
 
+        <p class="mt-2 text-xs text-muted-foreground">
+          💡 Have a PDF? Open it in PowerPoint → <span class="font-medium text-foreground">File → Save As → PowerPoint (.pptx)</span> before uploading.
+        </p>
+
         <div v-if="uploadedFile" class="mt-4 space-y-3">
           <p class="text-xs text-muted-foreground">Selected: <span class="font-medium text-foreground">{{ uploadedFile.name }}</span></p>
           <input v-model="title" placeholder="Case study title" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />

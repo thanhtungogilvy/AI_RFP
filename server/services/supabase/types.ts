@@ -63,6 +63,8 @@ export interface Database {
           status: 'uploaded' | 'analyzing' | 'analyzed' | 'error'
           uploaded_at: string
           created_at: string
+          updated_at: string
+          deleted_at: string | null
         }
         Insert: Omit<Database['public']['Tables']['rfp_documents']['Row'], 'id' | 'created_at' | 'uploaded_at'> & {
           id?: string

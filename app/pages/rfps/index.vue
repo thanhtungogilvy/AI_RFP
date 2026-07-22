@@ -1,10 +1,18 @@
 <script setup lang="ts">
-const { rfps, loading, error, fetchAll, analyze } = useRfps()
+const { rfps, loading, error, fetchAll, analyze, softDelete, deleting } = useRfps()
 
 async function handleAnalyze(id: string) {
   try {
     await analyze(id)
     await fetchAll()
+  } catch {
+    // The composable exposes the error state.
+  }
+}
+
+async function handleDelete(id: string) {
+  try {
+    await softDelete(id)
   } catch {
     // The composable exposes the error state.
   }
@@ -36,7 +44,7 @@ onMounted(fetchAll)
 
     <!-- Grid -->
     <div v-if="rfps.length" class="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <RfpCard v-for="rfp in rfps" :key="rfp.id" :rfp="rfp" @analyze="handleAnalyze" />
+      <RfpCard v-for="rfp in rfps" :key="rfp.id" :rfp="rfp" :deleting="deleting" @analyze="handleAnalyze" @delete="handleDelete" />
     </div>
   </AppShell>
 </template>
